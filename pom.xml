@@ -9,8 +9,8 @@
 	
 	<groupId>com.inqwise</groupId>
 	<artifactId>inqwise-errors</artifactId>
-	<version>1.0.0-SNAPSHOT</version>
-
+	<version>1.0.0</version>
+	<description>A structured error handling library for Java applications. Supports custom error codes, detailed error tickets, exception normalization, and stack trace focusing. Designed for integration with Vert.x and complex enterprise systems.</description>
 	<name>Inqwise Errors - errors library</name>
 	
 	<organization>
@@ -51,7 +51,7 @@
 		<junit5.version>5.10.1</junit5.version>
 		<maven-flatten-plugin.version>1.5.0</maven-flatten-plugin.version>
 		<maven.gpg.plugin.version>1.6</maven.gpg.plugin.version>
-		<maven.javadoc.plugin.version>3.2.0</maven.javadoc.plugin.version>
+		<maven.javadoc.plugin.version>3.5.0</maven.javadoc.plugin.version>
 		
 		<guava.version>33.0.0-jre</guava.version>
 		<jackson.version>2.17.2</jackson.version>
@@ -155,6 +155,42 @@
 	
 	<build>
 		<plugins>
+			<!-- Javadocs Plugin -->
+		    <plugin>
+		      <groupId>org.apache.maven.plugins</groupId>
+		      <artifactId>maven-javadoc-plugin</artifactId>
+		      <version>${maven.javadoc.plugin.version}</version>
+		      <executions>
+		        <execution>
+		          <id>attach-javadocs</id>
+		          <goals>
+		            <goal>jar</goal>
+		          </goals>
+		        </execution>
+		      </executions>
+		    </plugin>
+		    <plugin>
+		      <groupId>org.apache.maven.plugins</groupId>
+		      <artifactId>maven-gpg-plugin</artifactId>
+		      <version>${maven.gpg.plugin.version}</version>
+		      <executions>
+		        <execution>
+		          <id>sign-artifacts</id>
+		          <phase>verify</phase>
+		          <goals>
+		            <goal>sign</goal>
+		          </goals>
+		        </execution>
+		      </executions>
+		      <configuration>
+		      	<keyname>5C47F612585CBAF5873E8CADEDEA7939FEE09C62</keyname>
+			    <passphraseServerId>gpg.passphrase</passphraseServerId>
+			    <gpgArguments>
+			      <arg>--pinentry-mode</arg>
+			      <arg>loopback</arg>
+			    </gpgArguments>
+		      </configuration>
+		    </plugin>
 			<plugin>
 				<inherited>true</inherited>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -262,13 +298,53 @@
 					<artifactId>maven-install-plugin</artifactId>
 					<version>3.1.1</version>
 				</plugin>
-				<plugin>
-					<groupId>org.apache.maven.plugins</groupId>
-					<artifactId>maven-site-plugin</artifactId>
-					<version>3.12.1</version>
-				</plugin>
 			</plugins>
 		</pluginManagement>
 	</build>
+	<profiles>
+		<profile>
+			<id>sonatype-oss-release</id>
+			<build>
+				<plugins>
+				    <plugin>
+				      <groupId>org.sonatype.central</groupId>
+				      <artifactId>central-publishing-maven-plugin</artifactId>
+				      <version>0.6.0</version>
+				      <extensions>true</extensions>
+				      <configuration>
+				        <publishingServerId>sonatype-oss-release</publishingServerId>
+				      </configuration>
+				    </plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-enforcer-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>enforce-no-vertx-snapshots</id>
+								<goals>
+									<goal>enforce</goal>
+								</goals>
+								<configuration>
+									<rules>
+										<requireJavaVersion>
+											<message>inqwise-errors must be released with Java 21!</message>
+											<version>[21,)</version>
+										</requireJavaVersion>
+										<requireReleaseDeps>
+											<message>No inqwise-errors Snapshots Allowed during a release!</message>
+											<includes>
+												<include>com.inqwise:*</include>
+											</includes>
+										</requireReleaseDeps>
+									</rules>
+									<fail>true</fail>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 </project>
 
