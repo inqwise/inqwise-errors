@@ -226,7 +226,7 @@ public class ErrorTicket extends RuntimeException {
 
 	@Override
 	public String getMessage() {
-		return getErrorDetails();
+		return String.format("%s:%s", getErrorUnsafe(), getErrorDetails());
 	}
 
 	public static ErrorTicket propagate(Throwable t, Consumer<ErrorTicket.Builder> creator){

@@ -9,7 +9,7 @@
 	
 	<groupId>com.inqwise</groupId>
 	<artifactId>inqwise-errors</artifactId>
-	<version>1.0.0</version>
+	<version>1.0.1-SNAPSHOT</version>
 	<description>A structured error handling library for Java applications. Supports custom error codes, detailed error tickets, exception normalization, and stack trace focusing. Designed for integration with Vert.x and complex enterprise systems.</description>
 	<name>Inqwise Errors - errors library</name>
 	
@@ -30,12 +30,12 @@
 	</developers>
 	
 	<licenses>
-		<license>
-			<name>The Apache Software License, Version 2.0</name>
-			<url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-			<distribution>repo</distribution>
-		</license>
-	</licenses>
+        <license>
+            <name>MIT License</name>
+            <url>https://opensource.org/licenses/MIT</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
 
 	<scm>
 		<connection>scm:git:git@github.com:inqwise/inqwise-errors.git</connection>
@@ -169,28 +169,6 @@
 		        </execution>
 		      </executions>
 		    </plugin>
-		    <plugin>
-		      <groupId>org.apache.maven.plugins</groupId>
-		      <artifactId>maven-gpg-plugin</artifactId>
-		      <version>${maven.gpg.plugin.version}</version>
-		      <executions>
-		        <execution>
-		          <id>sign-artifacts</id>
-		          <phase>verify</phase>
-		          <goals>
-		            <goal>sign</goal>
-		          </goals>
-		        </execution>
-		      </executions>
-		      <configuration>
-		      	<keyname>5C47F612585CBAF5873E8CADEDEA7939FEE09C62</keyname>
-			    <passphraseServerId>gpg.passphrase</passphraseServerId>
-			    <gpgArguments>
-			      <arg>--pinentry-mode</arg>
-			      <arg>loopback</arg>
-			    </gpgArguments>
-		      </configuration>
-		    </plugin>
 			<plugin>
 				<inherited>true</inherited>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -303,48 +281,44 @@
 	</build>
 	<profiles>
 		<profile>
-			<id>sonatype-oss-release</id>
-			<build>
-				<plugins>
-				    <plugin>
-				      <groupId>org.sonatype.central</groupId>
-				      <artifactId>central-publishing-maven-plugin</artifactId>
-				      <version>0.6.0</version>
-				      <extensions>true</extensions>
-				      <configuration>
-				        <publishingServerId>sonatype-oss-release</publishingServerId>
-				      </configuration>
-				    </plugin>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-enforcer-plugin</artifactId>
-						<executions>
-							<execution>
-								<id>enforce-no-vertx-snapshots</id>
-								<goals>
-									<goal>enforce</goal>
-								</goals>
-								<configuration>
-									<rules>
-										<requireJavaVersion>
-											<message>inqwise-errors must be released with Java 21!</message>
-											<version>[21,)</version>
-										</requireJavaVersion>
-										<requireReleaseDeps>
-											<message>No inqwise-errors Snapshots Allowed during a release!</message>
-											<includes>
-												<include>com.inqwise:*</include>
-											</includes>
-										</requireReleaseDeps>
-									</rules>
-									<fail>true</fail>
-								</configuration>
-							</execution>
-						</executions>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
+            <id>sonatype-oss-release</id>
+            <build>
+                <plugins>
+                    <!-- Central Publishing Plugin -->
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.6.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>sonatype-oss-release</publishingServerId>
+                        </configuration>
+                    </plugin>
+
+                    <!-- GPG Plugin Configuration Moved to Profile -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>${maven.gpg.plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <gpgArguments>
+                                <arg>--pinentry-mode</arg>
+                                <arg>loopback</arg>
+                            </gpgArguments>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
 	</profiles>
 </project>
 
