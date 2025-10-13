@@ -54,7 +54,7 @@
 		<maven.javadoc.plugin.version>3.5.0</maven.javadoc.plugin.version>
 		
 		<guava.version>33.0.0-jre</guava.version>
-		<jackson.version>2.17.2</jackson.version>
+		<jackson.version>2.20.0</jackson.version>
 		<log4j2.version>2.22.1</log4j2.version>
 		<vertx.version>4.5.21</vertx.version>
     </properties>
