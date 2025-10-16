@@ -33,12 +33,24 @@ public class ErrorTicket extends RuntimeException {
 		return UNIQUE_IDENTIFIER;
 	}
 
-	public static class Keys {
+public static class Keys {
 		public static final String CODE = "code";
 		public static final String DETAILS = "details";
 		public static final String ERROR_GROUP = "group";
 		public static final String ERROR_ID = "id";
 		public static final String STATUS_CODE = "status_code";
+		
+		// RFC 7807 standard fields
+		public static final String TYPE = "type";
+		public static final String TITLE = "title";
+		public static final String STATUS = "status";
+		public static final String DETAIL = "detail";
+		public static final String INSTANCE = "instance";
+		
+		// OAuth 2.0 fields (RFC 6749)
+		public static final String ERROR = "error";
+		public static final String ERROR_DESCRIPTION = "error_description";
+		public static final String ERROR_URI = "error_uri";
 	}
 
 	void setErrorId(UUID errorId) {
@@ -65,8 +77,19 @@ public class ErrorTicket extends RuntimeException {
 	protected ErrorCode error;
 	@JsonProperty(Keys.ERROR_GROUP)
 	protected String errorGroup;
-	@JsonProperty(Keys.STATUS_CODE)
-	protected Integer statusCode;
+    @JsonProperty(Keys.STATUS_CODE)
+	private Integer statusCode;
+	
+	// RFC 7807 fields
+	@JsonProperty(Keys.TYPE)
+	protected String type;
+	@JsonProperty(Keys.TITLE)
+	protected String title;
+	@JsonProperty(Keys.INSTANCE)
+	protected String instance;
+	
+	// Additional metadata
+	protected Map<String, Object> extensions;
 
 	private ErrorTicket(Builder builder) {
 		this.errorId = builder.errorId;
@@ -74,6 +97,10 @@ public class ErrorTicket extends RuntimeException {
 		this.error = builder.error;
 		this.errorGroup = builder.errorGroup;
 		this.statusCode = builder.statusCode;
+		this.type = builder.type;
+		this.title = builder.title;
+		this.instance = builder.instance;
+		this.extensions = builder.extensions;
 	}
 
 	@JsonCreator
@@ -193,12 +220,34 @@ public class ErrorTicket extends RuntimeException {
 	public JsonObject toJson(){
 		var json = new JsonObject();
 		
+		// Standard fields
 		if(null != error) {
 			json.put(Keys.CODE, error.toString());
+			
+			// Map to OAuth error format if it's an OAuth error
+			if ("oauth".equals(errorGroup)) {
+				json.put(Keys.ERROR, error.toString());
+				if (null != errorDetails) {
+					json.put(Keys.ERROR_DESCRIPTION, errorDetails);
+				}
+				if (null != type) {
+					json.put(Keys.ERROR_URI, type);
+				}
+			}
+		}
+		
+		// RFC 7807 fields
+		if(null != type) {
+			json.put(Keys.TYPE, type);
+		}
+		
+		if(null != title) {
+			json.put(Keys.TITLE, title);
 		}
 		
 		if(null != errorDetails) {
 			json.put(Keys.DETAILS, errorDetails);
+			json.put(Keys.DETAIL, errorDetails); // RFC 7807 field
 		}
 		
 		if(null != errorGroup) {
@@ -211,17 +260,75 @@ public class ErrorTicket extends RuntimeException {
 
 		if(null != statusCode) {
 			json.put(Keys.STATUS_CODE, statusCode);
+			json.put(Keys.STATUS, statusCode); // RFC 7807 field
+		}
+		
+		if(null != instance) {
+			json.put(Keys.INSTANCE, instance);
+		}
+		
+		// Add any extensions
+		if (null != extensions) {
+			extensions.forEach(json::put);
 		}
 
 		return json;
 	}
 	
-	public void setStatusCode(Integer statusCode) {
+public void setStatusCode(Integer statusCode) {
 		this.statusCode = statusCode;
 	}
+	
+	/**
+	 * Gets the media type for this error response.
+	 * 
+	 * For RFC 7807 Problem Details, returns application/problem+json
+	 * For OAuth 2.0 errors, returns application/json
+	 */
+public String getContentType() {
+		return type != null || "oauth".equals(errorGroup) ? "application/json" : "application/problem+json";
+	}
+	
+	/**
+	 * Returns a map of HTTP response headers that should be included with this error.
+	 */
+	public Map<String, String> getResponseHeaders() {
+		Map<String, String> headers = new java.util.HashMap<>();
+		
+		// Add WWW-Authenticate header for OAuth errors
+		if ("oauth".equals(errorGroup) && statusCode != null && statusCode == 401) {
+			StringBuilder wwwAuth = new StringBuilder("Bearer");
+			if (error != null) {
+				wwwAuth.append(" error=\"").append(error.toString()).append("\"");
+			}
+			if (errorDetails != null) {
+				wwwAuth.append(" error_description=\"").append(errorDetails).append("\"");
+			}
+			if (type != null) {
+				wwwAuth.append(" error_uri=\"").append(type).append("\"");
+			}
+			headers.put("WWW-Authenticate", wwwAuth.toString());
+		}
+		
+		return headers;
+	}
+	
+	/**
+	 * Returns true if this error handler supports localization.
+	 */
+	public boolean supportsLocalization() {
+		return true; // Base implementation supports i18n
+	}
 
-	public Optional<Integer> optStatusCode(){
+public Optional<Integer> optStatusCode(){
 		return Optional.ofNullable(statusCode);
+	}
+
+	/**
+	 * Gets the HTTP status code for this error.
+	 */
+	public Integer getStatus() {
+		return statusCode;
 	}
 
 	@Override
@@ -269,12 +376,20 @@ public class ErrorTicket extends RuntimeException {
 		return new Builder(errorTicket);
 	}
 
-	public static final class Builder {
+public static final class Builder {
 		private UUID errorId = null;
 		private String errorDetails;
 		private ErrorCode error;
 		private String errorGroup;
 		private Integer statusCode;
+		
+		// RFC 7807 fields
+		private String type;
+		private String title;
+		private String instance;
+		
+		// Extensions for RFC 7807 and OAuth 2.0
+		private Map<String, Object> extensions = new java.util.HashMap<>();
 
 		private Builder() {
 		}
@@ -307,10 +422,30 @@ public class ErrorTicket extends RuntimeException {
 			return this;
 		}
 
-		public Builder withStatusCode(Integer statusCode) {
-			this.statusCode = statusCode;
-			return this;
-		}
+	public Builder withStatusCode(Integer statusCode) {
+		this.statusCode = statusCode;
+		return this;
+	}
+	
+	public Builder type(String type) {
+		this.type = type;
+		return this;
+	}
+	
+	public Builder title(String title) {
+		this.title = title;
+		return this;
+	}
+	
+	public Builder instance(String instance) {
+		this.instance = instance;
+		return this;
+	}
+	
+	public Builder addExtension(String key, Object value) {
+		this.extensions.put(key, value);
+		return this;
+	}
 
 		public Builder withDetails(String pattern, Object... arguments) {
 			return withDetails(ParameterizedMessage.format(pattern, arguments));
@@ -326,10 +461,19 @@ public class ErrorTicket extends RuntimeException {
 	}
 
 	@Override
-	public String toString() {
-		return MoreObjects.toStringHelper(this).omitNullValues().add("super", super.toString()).add("errorId", errorId)
-				.add("errorDetails", errorDetails).add("error", error).add("errorGroup", errorGroup)
-				.add("statusCode", statusCode).toString();
+public String toString() {
+		return MoreObjects.toStringHelper(this).omitNullValues()
+				.add("super", super.toString())
+				.add("errorId", errorId)
+				.add("errorDetails", errorDetails)
+				.add("error", error)
+				.add("errorGroup", errorGroup)
+				.add("statusCode", statusCode)
+				.add("type", type)
+				.add("title", title)
+				.add("instance", instance)
+				.add("extensions", extensions)
+				.toString();
 	}
 	
 	class UndefinedErrorCode implements ErrorCode {
