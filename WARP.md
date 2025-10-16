@@ -4,7 +4,7 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## Project Overview
 
-This is **inqwise-error**, a Java library for standardized error handling and error transformation. The project implements a micro-kernel architecture with extensible error providers and transformers.
+This is **inqwise-errors**, a Java library for standardized error handling and error transformation. The project implements a micro-kernel architecture with extensible error providers and transformers.
 
 ### Architecture Principles
 
@@ -159,7 +159,7 @@ Based on user rules, this project:
 ## Examples Location
 
 Comprehensive usage examples will be available in:
-- `src/main/java/com/inqwise/error/example/ErrorHandlingExample.java`
+- `src/main/java/com/inqwise/errors/example/ErrorHandlingExample.java`
 
 This file will demonstrate:
 - Basic error handling

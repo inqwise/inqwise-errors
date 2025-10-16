@@ -1,15 +1,15 @@
-[![CI](https://github.com/inqwise/inqwise-error/actions/workflows/ci.yml/badge.svg)](https://github.com/inqwise/inqwise-error/actions/workflows/ci.yml)
-[![Release](https://github.com/inqwise/inqwise-error/actions/workflows/release.yml/badge.svg)](https://github.com/inqwise/inqwise-error/actions/workflows/release.yml)
-[![CodeQL](https://github.com/inqwise/inqwise-error/actions/workflows/codeql.yml/badge.svg)](https://github.com/inqwise/inqwise-error/actions/workflows/codeql.yml)
-[![Snyk Security](https://github.com/inqwise/inqwise-error/actions/workflows/snyk.yml/badge.svg)](https://github.com/inqwise/inqwise-error/actions/workflows/snyk.yml)
-[![Maven Central](https://img.shields.io/maven-central/v/com.inqwise/inqwise-error.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:%22com.inqwise%22%20AND%20a:%22inqwise-error%22)
+[![CI](https://github.com/inqwise/inqwise-errors/actions/workflows/ci.yml/badge.svg)](https://github.com/inqwise/inqwise-errors/actions/workflows/ci.yml)
+[![Release](https://github.com/inqwise/inqwise-errors/actions/workflows/release.yml/badge.svg)](https://github.com/inqwise/inqwise-errors/actions/workflows/release.yml)
+[![CodeQL](https://github.com/inqwise/inqwise-errors/actions/workflows/codeql.yml/badge.svg)](https://github.com/inqwise/inqwise-errors/actions/workflows/codeql.yml)
+[![Snyk Security](https://github.com/inqwise/inqwise-errors/actions/workflows/snyk.yml/badge.svg)](https://github.com/inqwise/inqwise-errors/actions/workflows/snyk.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/com.inqwise/inqwise-errors.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:%22com.inqwise%22%20AND%20a:%22inqwise-errors%22)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Java Version](https://img.shields.io/badge/Java-21%2B-blue.svg)](https://openjdk.java.net/projects/jdk/21/)
 
 # Inqwise Error Handling Library
 
 ## Overview
-The `inqwise-error` library provides structured error handling for complex applications. It introduces a set of classes to define error tickets, track error events, manage exceptions, and focus on stack traces in a consistent and maintainable manner. This library is particularly suited for building applications that require detailed error reporting, such as RESTful APIs, microservices, or enterprise software.
+The `inqwise-errors` library provides structured error handling for complex applications. It introduces a set of classes to define error tickets, track error events, manage exceptions, and focus on stack traces in a consistent and maintainable manner. This library is particularly suited for building applications that require detailed error reporting, such as RESTful APIs, microservices, or enterprise software.
 
 ## Features
 - **Error Ticket Creation**: Use the `ErrorTicket` class to capture error events, including details such as error codes, status codes, and optional exceptions.
@@ -24,7 +24,7 @@ To use the library, include the following Maven dependency in your `pom.xml`:
 ```xml
 <dependency>
     <groupId>com.inqwise</groupId>
-    <artifactId>inqwise-error</artifactId>
+    <artifactId>inqwise-errors</artifactId>
     <version>${latest.version}</version>
 </dependency>
 ```
@@ -213,9 +213,9 @@ public class CustomStackTraceFocusing {
                 Pattern.compile("^java\\."),           // Ignore standard Java classes
                 Pattern.compile("^javax\\."),          // Ignore Javax classes
                 Pattern.compile("^sun\\."),           // Ignore Sun implementation classes
-                Pattern.compile("^com\\.thirdparty\\.")), // Ignore third-party library classes
+                Pattern.compile("^com\\.thirdparty\\."), // Ignore third-party library classes
                 Pattern.compile("^jdk\\."),           // Ignore JDK internal classes
-                Pattern.compile("^org\\.junit\\."     // Ignore test framework classes
+                Pattern.compile("^org\\.junit\\.")     // Ignore test framework classes
             );
             
             StackTraceFocuser<Throwable> focuser = StackTraceFocuser.ignoreClassNames(ignorePatterns);
