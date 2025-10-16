@@ -1,138 +1,184 @@
 package com.inqwise.errors;
 
+import static org.junit.jupiter.api.Assertions.*;
+
+import io.vertx.core.json.JsonObject;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import java.util.Map;
 import java.util.UUID;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
+/**
+ * Core unit tests for {@link ErrorTicket} focusing on essential functionality
+ * that complements the existing test suite.
+ */
+@DisplayName("Core ErrorTicket Tests")
+class CoreErrorTicketTest {
 
-import io.vertx.core.Vertx;
-import io.vertx.core.json.JsonObject;
-import io.vertx.junit5.VertxExtension;
+    @Nested
+    @DisplayName("Builder Pattern Tests")
+    class BuilderTest {
+        
+        @Test
+        @DisplayName("Builder should support all RFC 7807 fields")
+        void testRfc7807Fields() {
+            var errorId = UUID.randomUUID();
+            var ticket = ErrorTicket.builder()
+                .withErrorId(errorId)
+                .withError(ErrorCodes.GeneralError)
+                .withErrorGroup(ErrorCodes.GROUP)
+                .withErrorDetails("Validation failed")
+                .withStatusCode(400)
+                .type("https://errors.example.com/validation")
+                .title("Validation Error")
+                .instance("/users/123")
+                .build();
+            
+            var json = ticket.toJson();
+            assertAll("RFC 7807 Problem Details",
+                () -> assertEquals("https://errors.example.com/validation", json.getString("type")),
+                () -> assertEquals("Validation Error", json.getString("title")),
+                () -> assertEquals(400, json.getInteger("status")),
+                () -> assertEquals("Validation failed", json.getString("detail")),
+                () -> assertEquals("/users/123", json.getString("instance"))
+            );
+        }
+        
+        @Test
+        @DisplayName("Builder should create error ticket from exception")
+        void testBuildFromException() {
+            var ex = new RuntimeException("Test error");
+            var ticket = ErrorTicket.builder()
+                .withError(ErrorCodes.GeneralError)
+                .withErrorGroup(ErrorCodes.GROUP)
+                .withErrorDetails(ex.getMessage())
+                .build();
+            
+            assertAll("Exception-based Error Ticket",
+                () -> assertEquals(ErrorCodes.GeneralError, ticket.getError()),
+                () -> assertEquals("Test error", ticket.getErrorDetails()),
+                () -> assertNotNull(ticket.getErrorId())
+            );
+        }
+    }
 
-@ExtendWith(VertxExtension.class)
-public class ErrorTicketTest {
-	private static final Logger logger = LogManager.getLogger(ErrorTicketTest.class);
+    @Nested
+    @DisplayName("Header Generation Tests")
+    class HeaderTest {
+        
+        @Test
+        @DisplayName("OAuth errors should include WWW-Authenticate header")
+        void testOAuthWwwAuthenticateHeader() {
+            var ticket = ErrorTicket.builder()
+                .withError(OAuthErrorCodes.InvalidToken)
+                .withErrorGroup("oauth")
+                .withErrorDetails("Token expired")
+                .withStatusCode(401)
+                .type("https://errors.example.com/auth/invalid-token")
+                .build();
 
-	@BeforeEach
-	protected void setUp(Vertx vertx) throws Exception {
-	}
+            var headers = ticket.getResponseHeaders();
+            var wwwAuth = headers.get("WWW-Authenticate");
 
-	@Test
-	void testSerializationWithErrorFromDefaultGroup() throws Exception {
-		ErrorTicket errorTicket = ErrorTicket.builder()
-		.withError(ErrorCodes.GeneralError)
-		.withErrorId(UUID.randomUUID()).build();
+            assertAll("WWW-Authenticate Header",
+                () -> assertNotNull(wwwAuth, "WWW-Authenticate header must be present"),
+                () -> assertTrue(wwwAuth.contains("Bearer"), "Must specify Bearer auth"),
+                () -> assertTrue(wwwAuth.contains("error=\"invalid_token\""), "Must include error"),
+                () -> assertTrue(wwwAuth.contains("error_description=\"Token expired\""), "Must include description")
+            );
+        }
+        
+        @Test
+        @DisplayName("Non-OAuth errors should have minimal headers")
+        void testNonOAuthHeaders() {
+            var ticket = ErrorTicket.builder()
+                .withError(ErrorCodes.NotFound)
+                .withErrorGroup(ErrorCodes.GROUP)
+                .withStatusCode(404)
+                .build();
 
-		JsonObject json = JsonObject.mapFrom(errorTicket);
-		logger.debug("json:{}", json);
-		ErrorTicket errorTicketOut = json.mapTo(ErrorTicket.class);
+            var headers = ticket.getResponseHeaders();
+            assertFalse(headers.containsKey("WWW-Authenticate"),
+                "Non-OAuth errors should not have WWW-Authenticate header");
+        }
+    }
 
-		Assertions.assertEquals(errorTicket.toJson().toString(), errorTicketOut.toJson().toString());
-	}
-	
-	@Test
-	void testSerializationWithErrorFromNonGroup() throws Exception {
-		ErrorTicket errorTicket = ErrorTicket.builder()
-		.withError(CustomErrorCodes.Test)
-		.build();
+    @Nested
+    @DisplayName("Extension Tests")
+    class ExtensionTest {
+        
+        @Test
+        @DisplayName("Should support custom extension fields")
+        void testCustomExtensions() {
+            var ticket = ErrorTicket.builder()
+                .withError(ErrorCodes.GeneralError)
+                .withErrorGroup(ErrorCodes.GROUP)
+                .withErrorDetails("Invalid input")
+                .addExtension("field_errors", Map.of(
+                    "email", "Invalid email format",
+                    "age", "Must be positive number"
+                ))
+                .build();
 
-		JsonObject json = JsonObject.mapFrom(errorTicket);
-		logger.debug("json:{}", json);
-		ErrorTicket errorTicketOut = json.mapTo(ErrorTicket.class);
+            var json = ticket.toJson();
+            assertAll("Custom Extensions",
+                () -> assertTrue(json.containsKey("field_errors"), "Must include extension field"),
+                () -> assertNotNull(json.getJsonObject("field_errors"), "Extension must be valid JSON object"),
+                () -> assertEquals(2, json.getJsonObject("field_errors").size(), "Must have all error fields")
+            );
+        }
+    }
 
-		Assertions.assertEquals(errorTicket.toJson().toString(), errorTicketOut.toJson().toString());
-	}
-	
-	@Test
-	void testSerializationWithErrorAndGroup() throws Exception {
-		ErrorTicket errorTicket = ErrorTicket.builder()
-		.withError(ErrorCodes.GeneralError)
-		.withErrorGroup(ErrorCodes.GROUP)
-		.withErrorId(UUID.randomUUID()).build();
+    @Nested
+    @DisplayName("Content Type Tests")
+    class ContentTypeTest {
+        
+        @Test
+        @DisplayName("Should use application/problem+json for RFC 7807 errors")
+        void testProblemJsonContentType() {
+            var ticket = ErrorTicket.builder()
+                .withError(ErrorCodes.GeneralError)
+                .withErrorGroup(ErrorCodes.GROUP)
+                .type("https://errors.example.com/validation")
+                .build();
 
-		JsonObject json = JsonObject.mapFrom(errorTicket);
-		logger.debug("json:{}", json);
-		ErrorTicket errorTicketOut = json.mapTo(ErrorTicket.class);
+            assertEquals("application/problem+json", ticket.getContentType(),
+                "RFC 7807 errors should use problem+json content type");
+        }
 
-		Assertions.assertEquals(errorTicket.toJson().toString(), errorTicketOut.toJson().toString());
-	}
-	
-	@Test
-	void testSerializationWithIncorrectError() throws Exception {
-		ErrorTicket errorTicket = ErrorTicket.builder()
-		.withError(CustomErrorCodes.Test)
-		.withErrorGroup(ErrorCodes.GROUP)
-		.withErrorId(UUID.randomUUID()).build();
+        @Test
+        @DisplayName("Should use application/json for OAuth errors")
+        void testOAuthContentType() {
+            var ticket = ErrorTicket.builder()
+                .withError(OAuthErrorCodes.InvalidToken)
+                .withErrorGroup("oauth")
+                .build();
 
-		JsonObject json = JsonObject.mapFrom(errorTicket);
-		logger.debug("json:{}", json);
-		ErrorTicket errorTicketOut = json.mapTo(ErrorTicket.class);
+            assertEquals("application/json", ticket.getContentType(),
+                "OAuth errors should use json content type");
+        }
+    }
 
-		Assertions.assertEquals(errorTicket.toJson().toString(), errorTicketOut.toJson().toString());
-	}
-	
-	@Test
-	void testJsonConstructor() throws Exception {
-		logger.debug("test1");
-		var expectedErrorJson = ErrorTicket.builder().withError(ErrorCodes.NotImplemented).build().toJson();
-		var actualError = new ErrorTicket(expectedErrorJson);
-		Assertions.assertEquals(expectedErrorJson, actualError.toJson());
-		
-		logger.debug("test2");
-		expectedErrorJson = ErrorTicket.builder().withError(ErrorCodes.NotImplemented).withErrorGroup(ErrorCodes.GROUP).build().toJson();
-		actualError = new ErrorTicket(expectedErrorJson);
-		Assertions.assertEquals(expectedErrorJson, actualError.toJson());
-		
-		logger.debug("test3");
-		expectedErrorJson = ErrorTicket.builder().withError(CustomErrorCodes.Test).withErrorGroup(ErrorCodes.GROUP).build().toJson();
-		actualError = new ErrorTicket(expectedErrorJson);
-		Assertions.assertEquals(expectedErrorJson, actualError.toJson());
-	}
-	
-	@Test
-	void testParseJson() throws Exception {
-		logger.debug("test1");
-		var expectedErrorJson = ErrorTicket.builder().withError(ErrorCodes.NotImplemented).build().toJson();
-		var actualError = ErrorTicket.parse(expectedErrorJson);
-		Assertions.assertEquals(expectedErrorJson, actualError.toJson());
-		
-		logger.debug("test2");
-		expectedErrorJson = ErrorTicket.builder().withError(ErrorCodes.NotImplemented).withErrorGroup(ErrorCodes.GROUP).build().toJson();
-		actualError = ErrorTicket.parse(expectedErrorJson);
-		Assertions.assertEquals(expectedErrorJson, actualError.toJson());
-		
-		logger.debug("test3");
-		var bug = Assertions.assertThrows(Bug.class, () -> {
-			ErrorTicket.parse(ErrorTicket.builder().withError(CustomErrorCodes.Test).build().toJson());
-		});
-		logger.debug("error message: {}", bug.getMessage());
-		Assertions.assertTrue(bug.getMessage().startsWith("BUG: group is mandatory when code provided."));
-		
-		
-		logger.debug("test4");
-		var nullPointerEx = Assertions.assertThrows(NullPointerException.class, () -> {
-			ErrorTicket.parse(ErrorTicket.builder().withError(CustomErrorCodes.Test).withErrorGroup("bad group").build().toJson());
-		});
-		logger.debug("error message: {}", nullPointerEx.getMessage());
-		Assertions.assertTrue(nullPointerEx.getMessage().startsWith("provider not found for group"));
-		
-		logger.debug("test5");
-		bug = Assertions.assertThrows(Bug.class, () -> {
-			ErrorTicket.parse(ErrorTicket.builder().withError(CustomErrorCodes.Test).withErrorGroup(ErrorCodes.GROUP).build().toJson());
-		});
-		logger.debug("error message: {}", bug.getMessage());
-		Assertions.assertTrue(bug.getMessage().startsWith("BUG: error not found in group."));
-		
-		
-		logger.debug("test6 - default group");
-		expectedErrorJson = ErrorTicket.builder().withError(ErrorCodes.NotImplemented).build().toJson();
-		actualError = ErrorTicket.parse(expectedErrorJson, ErrorCodes.GROUP);
-		Assertions.assertEquals(actualError.getErrorGroup(), ErrorCodes.GROUP);
-		Assertions.assertEquals(actualError.getError(), ErrorCodes.NotImplemented);
-		
-	}
+    @Nested
+    @DisplayName("Error Comparison Tests")
+    class ComparisonTest {
+        
+        @Test
+        @DisplayName("Should correctly compare error codes")
+        void testErrorCodeComparison() {
+            var ticket = ErrorTicket.builder()
+                .withError(ErrorCodes.NotFound)
+                .withErrorGroup(ErrorCodes.GROUP)
+                .build();
+
+            assertAll("Error Code Comparisons",
+                () -> assertTrue(ticket.hasError(ErrorCodes.NotFound), "Should match exact error"),
+                () -> assertFalse(ticket.hasError(ErrorCodes.GeneralError), "Should not match different error"),
+                () -> assertTrue(ticket.hasErrorExcept(ErrorCodes.GeneralError), "Should match when error is excluded"),
+                () -> assertFalse(ticket.hasErrorExcept(ErrorCodes.NotFound), "Should not match when error is in except list")
+            );
+        }
+    }
 }

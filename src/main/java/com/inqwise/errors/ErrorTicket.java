@@ -286,7 +286,7 @@ public void setStatusCode(Integer statusCode) {
 	 * For OAuth 2.0 errors, returns application/json
 	 */
 public String getContentType() {
-		return type != null || "oauth".equals(errorGroup) ? "application/json" : "application/problem+json";
+return type != null && !"oauth".equals(errorGroup) ? "application/problem+json" : "application/json";
 	}
 	
 	/**
@@ -391,7 +391,8 @@ public static final class Builder {
 		// Extensions for RFC 7807 and OAuth 2.0
 		private Map<String, Object> extensions = new java.util.HashMap<>();
 
-		private Builder() {
+private Builder() {
+			this.errorId = UUID.randomUUID();
 		}
 
 		private Builder(ErrorTicket errorTicket) {

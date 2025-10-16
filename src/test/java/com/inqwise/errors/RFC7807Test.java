@@ -51,6 +51,7 @@ class RFC7807Test {
             .title("Resource Not Found")
             .withErrorDetails("The requested resource does not exist")
             .withStatusCode(404)
+            .type("https://errors.inqwise.com/not-found")
             .build();
 
         // Verify correct content type is used
