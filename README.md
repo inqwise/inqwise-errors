@@ -1,4 +1,10 @@
----
+[![CI](https://github.com/inqwise/inqwise-error/actions/workflows/ci.yml/badge.svg)](https://github.com/inqwise/inqwise-error/actions/workflows/ci.yml)
+[![Release](https://github.com/inqwise/inqwise-error/actions/workflows/release.yml/badge.svg)](https://github.com/inqwise/inqwise-error/actions/workflows/release.yml)
+[![CodeQL](https://github.com/inqwise/inqwise-error/actions/workflows/codeql.yml/badge.svg)](https://github.com/inqwise/inqwise-error/actions/workflows/codeql.yml)
+[![Snyk Security](https://github.com/inqwise/inqwise-error/actions/workflows/snyk.yml/badge.svg)](https://github.com/inqwise/inqwise-error/actions/workflows/snyk.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/com.inqwise/inqwise-error.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:%22com.inqwise%22%20AND%20a:%22inqwise-error%22)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Java Version](https://img.shields.io/badge/Java-21%2B-blue.svg)](https://openjdk.java.net/projects/jdk/21/)
 
 # Inqwise Error Handling Library
 
@@ -19,7 +25,7 @@ To use the library, include the following Maven dependency in your `pom.xml`:
 <dependency>
     <groupId>com.inqwise</groupId>
     <artifactId>inqwise-error</artifactId>
-    <version>1.0.0</version>
+    <version>${latest.version}</version>
 </dependency>
 ```
 
@@ -159,11 +165,13 @@ import com.inqwise.errors.ErrorTickets;
 
 public class Validator {
     public void validateInput(String input) {
+        // Show how to use ErrorTickets validation methods
         ErrorTickets.checkNotNull(input, "Input cannot be null.");
         ErrorTickets.checkArgument(input.length() > 3, "Input length must be greater than 3.");
     }
 
     public void handleNotFoundScenario() {
+        // Example of using predefined error tickets
         throw ErrorTickets.notFound("Requested resource not found.");
     }
 }
@@ -200,11 +208,14 @@ public class CustomStackTraceFocusing {
         try {
             throw new RuntimeException("Simulated custom exception");
         } catch (Exception e) {
-            // Create a custom StackTraceFocuser to ignore JDK and custom library classes
+            // Create a custom StackTraceFocuser to ignore specific package patterns
             List<Pattern> ignorePatterns = List.of(
-                Pattern.compile("^java\\."),          // Ignore standard Java classes
-                Pattern.compile("^javax\\."),         // Ignore Javax classes
-                Pattern.compile("^com\\.thirdparty\\.") // Ignore third-party library classes
+                Pattern.compile("^java\\."),           // Ignore standard Java classes
+                Pattern.compile("^javax\\."),          // Ignore Javax classes
+                Pattern.compile("^sun\\."),           // Ignore Sun implementation classes
+                Pattern.compile("^com\\.thirdparty\\.")), // Ignore third-party library classes
+                Pattern.compile("^jdk\\."),           // Ignore JDK internal classes
+                Pattern.compile("^org\\.junit\\."     // Ignore test framework classes
             );
             
             StackTraceFocuser<Throwable> focuser = StackTraceFocuser.ignoreClassNames(ignorePatterns);
