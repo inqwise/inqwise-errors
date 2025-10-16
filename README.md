@@ -4,7 +4,8 @@
 [![Snyk Security](https://github.com/inqwise/inqwise-errors/actions/workflows/snyk.yml/badge.svg)](https://github.com/inqwise/inqwise-errors/actions/workflows/snyk.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/com.inqwise/inqwise-errors.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:%22com.inqwise%22%20AND%20a:%22inqwise-errors%22)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Java Version](https://img.shields.io/badge/Java-21%2B-blue.svg)](https://openjdk.java.net/projects/jdk/21/)
+[![codecov](https://codecov.io/gh/inqwise/inqwise-errors/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/inqwise/inqwise-errors)
+[![Java Version](https://img.shields.io/badge/Java-21%2B-blue.svg)]
 
 # Inqwise Error Handling Library
 

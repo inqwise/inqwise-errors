@@ -32,6 +32,14 @@ jobs:
     - name: Run tests
       run: mvn clean test
       
+    - name: Upload coverage reports to Codecov
+      if: matrix.java == '21'
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./target/site/jacoco/jacoco.xml
+        fail_ci_if_error: false
+      
     - name: Generate test report
       uses: dorny/test-reporter@v2
       if: success() || failure()
