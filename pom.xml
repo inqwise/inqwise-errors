@@ -38,9 +38,9 @@
     </licenses>
 
 	<scm>
-		<connection>scm:git:git@github.com:inqwise/inqwise-errors.git</connection>
-		<developerConnection>scm:git:git@github.com:inqwise/inqwise-errors.git</developerConnection>
-		<url>git@github.com:inqwise/inqwise-errors.git</url>
+		<connection>scm:git:https://github.com/inqwise/inqwise-errors.git</connection>
+		<developerConnection>scm:git:https://github.com/inqwise/inqwise-errors.git</developerConnection>
+		<url>https://github.com/inqwise/inqwise-errors</url>
 	</scm>
 	
 	<properties>
