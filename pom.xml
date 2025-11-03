@@ -357,7 +357,6 @@
 						<configuration>
 							<publishingServerId>sonatype-oss-release</publishingServerId>
 							<autoPublish>true</autoPublish>
-							<waitUntil>published</waitUntil>
 							<checksums>required</checksums>
 						</configuration>
                     </plugin>
