@@ -4,7 +4,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
+import java.util.Random;
 import java.util.function.Consumer;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -33,7 +33,7 @@ public class ErrorTicket extends RuntimeException {
 		return UNIQUE_IDENTIFIER;
 	}
 
-public static class Keys {
+	public static class Keys {
 		public static final String CODE = "code";
 		public static final String DETAILS = "details";
 		public static final String ERROR_GROUP = "group";
@@ -53,12 +53,12 @@ public static class Keys {
 		public static final String ERROR_URI = "error_uri";
 	}
 
-	void setErrorId(UUID errorId) {
+	void setErrorId(String errorId) {
 		this.errorId = errorId;
 	}
 	
-	void setError(ErrorCode error) {
-		this.error = error;
+	void setError(String error) {
+		this.errorId = error;
 	}
 
 	void setErrorDetails(String errorDetails) {
@@ -70,7 +70,7 @@ public static class Keys {
 	}
 	
 	@JsonProperty(Keys.ERROR_ID)
-	protected UUID errorId;
+	protected String errorId;
 	@JsonProperty(Keys.DETAILS)
 	protected String errorDetails;
 	@JsonProperty(Keys.CODE)
@@ -116,7 +116,7 @@ public static class Keys {
 	public static final ErrorTicket parse(JsonObject json, String defaultGroup) {
 		var builder = ErrorTicket.builder();
 		builder.withErrorDetails(json.getString(Keys.DETAILS));
-		builder.withErrorId(Optional.ofNullable(json.getString(Keys.ERROR_ID)).map(UUID::fromString).orElse(null));
+		builder.withErrorId(json.getString(Keys.ERROR_ID));
 		builder.withStatusCode(json.getInteger(Keys.STATUS_CODE));
 		String errorGroup;
 		builder.withErrorGroup(errorGroup = json.getString(Keys.ERROR_GROUP, defaultGroup));
@@ -147,7 +147,7 @@ public static class Keys {
 	
 	public ErrorTicket(JsonObject json) {
 		this.errorDetails = json.getString(Keys.DETAILS);
-		this.errorId = Optional.ofNullable(json.getString(Keys.ERROR_ID)).map(UUID::fromString).orElse(null);
+		this.errorId = json.getString(Keys.ERROR_ID);
 		this.statusCode = json.getInteger(Keys.STATUS_CODE);
 		this.errorGroup = json.getString(Keys.ERROR_GROUP);
 		var errorCodeName = json.getString(Keys.CODE);
@@ -197,7 +197,7 @@ public static class Keys {
 		}
 	}
 	
-	public UUID getErrorId() {
+	public String getErrorId() {
 		return errorId;
 	}
 
@@ -376,8 +376,14 @@ public Optional<Integer> optStatusCode(){
 		return new Builder(errorTicket);
 	}
 
-public static final class Builder {
-		private UUID errorId = null;
+	public static final class Builder {
+		private static final char[] CONSONANTS = "bcdfghjkmnpqrstvwxyz".toCharArray();
+	    private static final char[] VOWELS = "aeiou".toCharArray();
+	    private static final char[] DIGITS = "23456789".toCharArray();
+	    private static final int DIGIT_PROBABILITY = 5; // ~20%
+	
+	    private static final Random RND = new Random();
+		private String errorId = null;
 		private String errorDetails;
 		private ErrorCode error;
 		private String errorGroup;
@@ -390,9 +396,46 @@ public static final class Builder {
 		
 		// Extensions for RFC 7807 and OAuth 2.0
 		private Map<String, Object> extensions = new java.util.HashMap<>();
+		
+		private static String generate(int size, boolean preventFirstCharDigit) {
+	        StringBuilder sb = new StringBuilder(size);
+	        
+	        // Add the prefix if specified
+	        
+	        int startIndex = sb.length();
+	        int remainingSize = size - startIndex;
 
-private Builder() {
-			this.errorId = UUID.randomUUID();
+	        for (int i = 0; i < remainingSize; i++) {
+	            int absolutePosition = startIndex + i;
+	            
+	            if (absolutePosition % 2 == 0) {
+	                // Even positions: consonants or digits
+	                boolean shouldUseDigit = RND.nextInt(DIGIT_PROBABILITY) == 0;
+	                
+	                // Prevent first character from being a digit if configured
+	                if (preventFirstCharDigit && absolutePosition == 0 && shouldUseDigit) {
+	                    shouldUseDigit = false;
+	                }
+	                
+	                if (shouldUseDigit) {
+	                    sb.append(randomChar(DIGITS));
+	                } else {
+	                    sb.append(randomChar(CONSONANTS));
+	                }
+	            } else {
+	                // Odd positions: vowels
+	                sb.append(randomChar(VOWELS));
+	            }
+	        }
+	        return sb.toString();
+	    }
+		
+		private static char randomChar(char[] source) {
+	        return source[RND.nextInt(source.length)];
+	    }
+		
+		private Builder() {
+			this.errorId = generate(10, true);
 		}
 
 		private Builder(ErrorTicket errorTicket) {
@@ -403,7 +446,7 @@ private Builder() {
 			this.statusCode = errorTicket.statusCode;
 		}
 
-		public Builder withErrorId(UUID errorId) {
+		public Builder withErrorId(String errorId) {
 			this.errorId = errorId;
 			return this;
 		}

@@ -24,7 +24,7 @@ class CoreErrorTicketTest {
         @Test
         @DisplayName("Builder should support all RFC 7807 fields")
         void testRfc7807Fields() {
-            var errorId = UUID.randomUUID();
+            var errorId = UUID.randomUUID().toString();
             var ticket = ErrorTicket.builder()
                 .withErrorId(errorId)
                 .withError(ErrorCodes.GeneralError)
@@ -127,6 +127,63 @@ class CoreErrorTicketTest {
                 () -> assertTrue(json.containsKey("field_errors"), "Must include extension field"),
                 () -> assertNotNull(json.getJsonObject("field_errors"), "Extension must be valid JSON object"),
                 () -> assertEquals(2, json.getJsonObject("field_errors").size(), "Must have all error fields")
+            );
+        }
+    }
+
+    @Nested
+    @DisplayName("toJson Serialization Tests")
+    class ToJsonTest {
+
+        @Test
+        @DisplayName("toJson should serialize standard and RFC 7807 fields")
+        void toJsonSerializesStandardFields() {
+            var ticket = ErrorTicket.builder()
+                .withError(ErrorCodes.NotFound)
+                .withErrorGroup(ErrorCodes.GROUP)
+                .withErrorDetails("Missing resource")
+                .withStatusCode(404)
+                .title("Resource Missing")
+                .type("https://errors.inqwise.com/not-found")
+                .instance("/orders/42")
+                .addExtension("traceId", "abc-123")
+                .build();
+
+            var json = ticket.toJson();
+
+            assertAll("Serialized error fields",
+                () -> assertEquals(ErrorCodes.NotFound.toString(), json.getString(ErrorTicket.Keys.CODE)),
+                () -> assertEquals("Missing resource", json.getString(ErrorTicket.Keys.DETAILS)),
+                () -> assertEquals("Missing resource", json.getString(ErrorTicket.Keys.DETAIL)),
+                () -> assertEquals(ErrorCodes.GROUP, json.getString(ErrorTicket.Keys.ERROR_GROUP)),
+                () -> assertEquals(404, json.getInteger(ErrorTicket.Keys.STATUS_CODE)),
+                () -> assertEquals(404, json.getInteger(ErrorTicket.Keys.STATUS)),
+                () -> assertEquals("https://errors.inqwise.com/not-found", json.getString(ErrorTicket.Keys.TYPE)),
+                () -> assertEquals("Resource Missing", json.getString(ErrorTicket.Keys.TITLE)),
+                () -> assertEquals("/orders/42", json.getString(ErrorTicket.Keys.INSTANCE)),
+                () -> assertTrue(json.containsKey(ErrorTicket.Keys.ERROR_ID), "Error id must be serialized"),
+                () -> assertEquals("abc-123", json.getString("traceId"))
+            );
+        }
+
+        @Test
+        @DisplayName("toJson should add OAuth specific aliases")
+        void toJsonAddsOAuthAliases() {
+            var ticket = ErrorTicket.builder()
+                .withError(OAuthErrorCodes.InvalidClient)
+                .withErrorGroup("oauth")
+                .withErrorDetails("Client credentials rejected")
+                .type("https://errors.inqwise.com/oauth/invalid_client")
+                .build();
+
+            var json = ticket.toJson();
+
+            assertAll("OAuth serialization",
+                () -> assertEquals("invalid_client", json.getString(ErrorTicket.Keys.ERROR)),
+                () -> assertEquals("Client credentials rejected", json.getString(ErrorTicket.Keys.ERROR_DESCRIPTION)),
+                () -> assertEquals("https://errors.inqwise.com/oauth/invalid_client", json.getString(ErrorTicket.Keys.ERROR_URI)),
+                () -> assertEquals("oauth", json.getString(ErrorTicket.Keys.ERROR_GROUP)),
+                () -> assertEquals("invalid_client", json.getString(ErrorTicket.Keys.CODE))
             );
         }
     }
