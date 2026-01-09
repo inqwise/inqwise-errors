@@ -153,7 +153,6 @@ class CoreErrorTicketTest {
 
             assertAll("Serialized error fields",
                 () -> assertEquals(ErrorCodes.NotFound.toString(), json.getString(ErrorTicket.Keys.CODE)),
-                () -> assertEquals("Missing resource", json.getString(ErrorTicket.Keys.DETAILS)),
                 () -> assertEquals("Missing resource", json.getString(ErrorTicket.Keys.DETAIL)),
                 () -> assertEquals(ErrorCodes.GROUP, json.getString(ErrorTicket.Keys.ERROR_GROUP)),
                 () -> assertEquals(404, json.getInteger(ErrorTicket.Keys.STATUS_CODE)),

@@ -35,7 +35,6 @@ public class ErrorTicket extends RuntimeException {
 
 	public static class Keys {
 		public static final String CODE = "code";
-		public static final String DETAILS = "details";
 		public static final String ERROR_GROUP = "group";
 		public static final String ERROR_ID = "id";
 		public static final String STATUS_CODE = "status_code";
@@ -71,7 +70,7 @@ public class ErrorTicket extends RuntimeException {
 	
 	@JsonProperty(Keys.ERROR_ID)
 	protected String errorId;
-	@JsonProperty(Keys.DETAILS)
+	@JsonProperty(Keys.DETAIL)
 	protected String errorDetails;
 	@JsonProperty(Keys.CODE)
 	protected ErrorCode error;
@@ -115,7 +114,7 @@ public class ErrorTicket extends RuntimeException {
 	
 	public static final ErrorTicket parse(JsonObject json, String defaultGroup) {
 		var builder = ErrorTicket.builder();
-		builder.withErrorDetails(json.getString(Keys.DETAILS));
+		builder.withErrorDetails(json.getString(Keys.DETAIL));
 		builder.withErrorId(json.getString(Keys.ERROR_ID));
 		builder.withStatusCode(json.getInteger(Keys.STATUS_CODE));
 		String errorGroup;
@@ -146,7 +145,7 @@ public class ErrorTicket extends RuntimeException {
 	}
 	
 	public ErrorTicket(JsonObject json) {
-		this.errorDetails = json.getString(Keys.DETAILS);
+		this.errorDetails = json.getString(Keys.DETAIL);
 		this.errorId = json.getString(Keys.ERROR_ID);
 		this.statusCode = json.getInteger(Keys.STATUS_CODE);
 		this.errorGroup = json.getString(Keys.ERROR_GROUP);
@@ -246,7 +245,6 @@ public class ErrorTicket extends RuntimeException {
 		}
 		
 		if(null != errorDetails) {
-			json.put(Keys.DETAILS, errorDetails);
 			json.put(Keys.DETAIL, errorDetails); // RFC 7807 field
 		}
 		
