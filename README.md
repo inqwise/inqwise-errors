@@ -16,9 +16,11 @@ The `inqwise-errors` library provides structured error handling for complex appl
 ## Features
 - **Error Ticket Creation**: Use the `ErrorTicket` class to capture error events, including details such as error codes, status codes, and optional exceptions.
 - **Helper Functions for Error Checks**: The `ErrorTickets` helper class provides static methods for common error handling patterns, such as checking null references or validating conditions.
-- **Exception Normalization**: Use `ExceptionNormalizer` to convert exceptions into a standard format for consistent handling.
+- **Exception Helpers**: `Throws` consolidates propagation, `NotFoundException`/`NotImplementedException` factories, and unboxing routines.
 - **Bug Tracking**: Use the `Bug` class for representing unexpected issues that should never occur in a stable system.
 - **Stack Trace Focusing**: Use `StackTraceFocuser` to filter stack trace elements and highlight the most relevant parts, making debugging easier.
+
+> **Note:** The legacy `ExceptionNormalizer` flow has been removed and should not be used in new code paths.
 
 ## Getting Started
 To use the library, include the following Maven dependency in your `pom.xml`:
@@ -138,44 +140,34 @@ public class Test {
 The following sections describe the main classes and functionalities for error handling and management in this library.
 
 ### `ErrorTicket`
-The `ErrorTicket` class is a core component of the library used to encapsulate an error event and is modeled for use with [Vert.x](https://vertx.io/). It provides a standardized way to structure error data, making it easier to integrate with Vert.x's JSON and error-handling mechanisms.
+`ErrorTicket` encapsulates structured problem details (RFC 7807) and OAuth-compatible payloads. Builders support fluent configuration of `type`, `title`, `instance`, status, and custom extension fields to encode actionable metadata.
 
-**Example: Creating an Error Ticket**
+**Example: Building and serializing an ErrorTicket**
 ```java
-import com.inqwise.errors.ErrorTicket;
-import com.example.errors.UserErrors;
+ErrorTicket ticket = ErrorTicket.builder()
+    .withError(UserErrors.FirstNameIsMandatory)
+    .withErrorGroup(UserErrors.GROUP)
+    .withStatusCode(400)
+    .type("https://errors.example.com/users/first-name")
+    .title("First Name Missing")
+    .instance("/api/users/42")
+    .addExtension("hint", "Provide the firstName field")
+    .build();
 
-public class ErrorHandlingExample {
-    public static void main(String[] args) {
-        ErrorTicket ticket = ErrorTicket.builder()
-                                        .withError(UserErrors.FirstNameIsMandatory)
-                                        .withErrorDetails("First name must be provided during registration.")
-                                        .withStatusCode(400)
-                                        .build();
-
-        System.out.println("Error Ticket: " + ticket.toString());
-    }
-}
+JsonObject payload = ticket.toJson();
 ```
 
+Implementing `ProvidesErrorTicket` in your own exceptions lets consumers call `toErrorTicket()` for consistent serialization/logging, while still exposing the underlying `Builder` for customization.
+
 ### `ErrorTickets`
-The `ErrorTickets` class is a utility helper that provides static methods for common error handling scenarios. It includes predefined error tickets for common cases like `notFound` or `general`, and validation methods such as `checkNotNull` and `checkArgument`.
+`ErrorTickets` provides guard utilities (e.g., `checkNotNull`, `checkArgument`, `checkAnyNotNull`) that throw consistent `ErrorTicket`s. These helpers centralize validation while keeping business logic concise.
 
-**Example: Using `ErrorTickets` Helper Methods**
+**Example: Guarding request payloads**
 ```java
-import com.inqwise.errors.ErrorTickets;
-
-public class Validator {
-    public void validateInput(String input) {
-        // Show how to use ErrorTickets validation methods
-        ErrorTickets.checkNotNull(input, "Input cannot be null.");
-        ErrorTickets.checkArgument(input.length() > 3, "Input length must be greater than 3.");
-    }
-
-    public void handleNotFoundScenario() {
-        // Example of using predefined error tickets
-        throw ErrorTickets.notFound("Requested resource not found.");
-    }
+void validate(UserRequest req) {
+    ErrorTickets.checkNotNull(req, "Request cannot be null");
+    ErrorTickets.checkArgument(req.getEmail().contains("@"), builder ->
+        builder.withError(ErrorCodes.ArgumentWrong).withErrorDetails("Invalid email"));
 }
 ```
 
@@ -196,31 +188,37 @@ public class SystemValidator {
 }
 ```
 
+### `Throws`
+`Throws` centralizes exception helpers: quickly propagate checked exceptions, build `NotFoundException`/`NotImplementedException`, or unwrap nested wrappers.
+
+**Example: Unwrapping nested completion exceptions**
+```java
+try {
+    future.join();
+} catch (CompletionException e) {
+    throw Throws.propagate(Throws.unbox(e, CompletionException.class));
+}
+```
+
 ### `StackTraceFocuser`
-The `StackTraceFocuser` class provides a way to filter and highlight relevant stack trace elements from exceptions. This is particularly useful when debugging complex issues, as it helps pinpoint the most important parts of a stack trace.
+`StackTraceFocuser` trims stack traces by cloning exceptions and removing frames that match configured predicates. Use `StackTraceFocuser.defaultInstance()` for the built-in JDK-filtering variant or the fluent builder to specify class, method, and file patterns.
 
 **Example: Custom Stack Trace Filtering**
 ```java
 import com.inqwise.errors.StackTraceFocuser;
-import java.util.regex.Pattern;
-import java.util.List;
 
 public class CustomStackTraceFocusing {
     public static void main(String[] args) {
         try {
             throw new RuntimeException("Simulated custom exception");
         } catch (Exception e) {
-            // Create a custom StackTraceFocuser to ignore specific package patterns
-            List<Pattern> ignorePatterns = List.of(
-                Pattern.compile("^java\\."),           // Ignore standard Java classes
-                Pattern.compile("^javax\\."),          // Ignore Javax classes
-                Pattern.compile("^sun\\."),           // Ignore Sun implementation classes
-                Pattern.compile("^com\\.thirdparty\\."), // Ignore third-party library classes
-                Pattern.compile("^jdk\\."),           // Ignore JDK internal classes
-                Pattern.compile("^org\\.junit\\.")     // Ignore test framework classes
-            );
-            
-            StackTraceFocuser<Throwable> focuser = StackTraceFocuser.ignoreClassNames(ignorePatterns);
+            StackTraceFocuser focuser = StackTraceFocuser.builder()
+                .addClass("^java\\.")                 // ignore stdlib classes
+                .addClass("^org\\.junit\\.")        // ignore test harness
+                .addMethod("^lambda$")                // strip synthetic lambdas
+                .addFile(".*Proxy\\.java")           // strip generated proxies
+                .build();
+
             Throwable focusedException = focuser.apply(e);
             focusedException.printStackTrace();
         }

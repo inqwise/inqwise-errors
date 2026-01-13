@@ -185,6 +185,31 @@ class CoreErrorTicketTest {
                 () -> assertEquals("invalid_client", json.getString(ErrorTicket.Keys.CODE))
             );
         }
+
+        @Test
+        @DisplayName("toJson round-trips through Json constructor")
+        void toJsonRoundTrip() {
+            var original = ErrorTicket.builder()
+                .withError(ErrorCodes.GeneralError)
+                .withErrorGroup(ErrorCodes.GROUP)
+                .withErrorDetails("Something failed")
+                .withStatusCode(500)
+                .title("Internal Error")
+                .type("https://errors.inqwise.com/internal-error")
+                .instance("/api/jobs/9")
+                .build();
+
+            var copy = new ErrorTicket(original.toJson());
+
+            assertAll("Round-trip fields",
+                () -> assertEquals(original.getError(), copy.getError()),
+                () -> assertEquals(original.getErrorGroup(), copy.getErrorGroup()),
+                () -> assertEquals(original.getErrorDetails(), copy.getErrorDetails()),
+                () -> assertEquals(original.getStatus(), copy.getStatus()),
+                () -> assertEquals(original.getErrorId(), copy.getErrorId()),
+                () -> assertEquals(original.getMessage(), copy.getMessage())
+            );
+        }
     }
 
     @Nested

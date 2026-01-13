@@ -2,9 +2,13 @@ package com.inqwise.errors;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 
-public class Bug
-	   extends IllegalStateException {
-    
+import com.inqwise.errors.ErrorTicket.Builder;
+
+/**
+ * Signals unexpected situations that indicate a programming defect.
+ */
+public class Bug extends IllegalStateException implements ProvidesErrorTicket {
+	
 	private static final long serialVersionUID = 6471911008970602096L;
 
 	/**
@@ -15,11 +19,11 @@ public class Bug
 	*
 	* @see String#format(String, Object...)
 	*/
-    public Bug(final String message, final Object... args) {
-	   this(null, message, args);
-    }
+	public Bug(final String message, final Object... args) {
+		this(null, message, args);
+	}
 
-    /**
+	/**
 	* Constructs a new {@code Bug} with the given parameters.
 	*
 	* @param cause the root cause wrapped in this bug
@@ -28,7 +32,12 @@ public class Bug
 	*
 	* @see String#format(String, Object...)
 	*/
-    public Bug(final Throwable cause, final String message, final Object... args) {
-	   super("BUG: " + ParameterizedMessage.format(message, args), cause);
-    }
+	public Bug(final Throwable cause, final String message, final Object... args) {
+		super("BUG: " + ParameterizedMessage.format(message, args), cause);
+	}
+	
+	@Override
+	public Builder getErrorTicketBuilder() {
+		return ErrorTicket.builder().withError(ErrorCodes.GeneralError).withDetails(getMessage());
+	}
 }

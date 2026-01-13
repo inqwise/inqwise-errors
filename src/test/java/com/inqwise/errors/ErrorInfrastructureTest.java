@@ -47,27 +47,6 @@ class ErrorInfrastructureTest {
     }
 
     @Test
-    void exceptionNormalizerUnboxesAndFocusesStack() {
-        var inner = new IllegalStateException("inner");
-        inner.setStackTrace(new StackTraceElement[]{
-            new StackTraceElement("java.lang.Thread", "run", "Thread.java", 1),
-            new StackTraceElement("com.acme.App", "execute", "App.java", 2)
-        });
-
-        var wrapped = new CompletionException(inner);
-
-        var normalizer = ExceptionNormalizer.notmalizer();
-        var normalized = normalizer.normalize(wrapped);
-
-        assertAll(
-            () -> assertSame(inner, normalized),
-            () -> assertEquals(1, normalized.getStackTrace().length),
-            () -> assertEquals("com.acme.App", normalized.getStackTrace()[0].getClassName()),
-            () -> assertNotNull(normalizer.stackTraceFocuser())
-        );
-    }
-
-    @Test
     void errorCodeProvidersLoadFromServiceDiscovery() {
         var provider = ErrorCodeProviders.get(ErrorCodes.GROUP);
 
@@ -106,12 +85,12 @@ class ErrorInfrastructureTest {
         assertTrue(ticket.getError() instanceof ErrorTicket.UndefinedErrorCode);
         var undefined = (ErrorTicket.UndefinedErrorCode) ticket.getError();
 
-        assertAll(
-            () -> assertEquals("MISSING", undefined.getName()),
-            () -> assertNull(undefined.group()),
-            () -> assertEquals("MISSING", undefined.toString())
-        );
-    }
+		assertAll(
+			() -> assertEquals("MISSING", undefined.getName()),
+			() -> assertEquals(ErrorCodes.GROUP, undefined.group()),
+			() -> assertEquals("MISSING", undefined.toString())
+		);
+	}
 
     @Test
     void errorTicketKeysAccessible() {

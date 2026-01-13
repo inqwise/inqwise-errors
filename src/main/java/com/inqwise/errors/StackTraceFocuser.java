@@ -5,121 +5,453 @@ import static java.util.regex.Pattern.compile;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.StreamSupport.stream;
 
+import java.lang.reflect.Constructor;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import com.google.common.collect.Lists;
 
-public final class StackTraceFocuser<E extends Throwable>
-	   implements Function<E, E> {
-    private static final List<Pattern> defaultClassNameIgnores = asList(compile("^java\\."),
-		  compile("^javax\\."), compile("^sun\\."), compile("^com\\.sun\\."));
-    private final Predicate<StackTraceElement> ignore;
+/**
+ * Utility that trims exception stack traces by removing frames matched by configurable predicates.
+ */
+public final class StackTraceFocuser implements Function<Throwable, Throwable> {
+	private static final List<Pattern> DEFAULT_JAVA_CLASS_PATTERNS = asList(compile("^java\\."),
+		compile("^javax\\."), compile("^sun\\."), compile("^com\\.sun\\."));
+	private static volatile StackTraceFocuser defaultInstance;
+	private final Predicate<StackTraceElement> ignore;
 
-    /**
-	* Creates a new {@code StackTraceFocuser} for the given list of <var>classNameIgnores</var>
-	* regexen.
-	*
-	* @param classNameIgnores the patterns to ignore, never missing
-	* @param <E> the exception type
-	*
-	* @return thew new {@code StackTraceFocuser}, never missing
-	*/
-    
-    public static <E extends Throwable> StackTraceFocuser<E> ignoreClassNames(
-		   final List<Pattern> classNameIgnores) {
-	   return new StackTraceFocuser<>(toPredicates(classNameIgnores));
-    }
+	/**
+	 * Creates a new {@code StackTraceFocuser} that ignores stack frames whose class names match the
+	 * supplied patterns.
+	 *
+	 * @param classNameIgnores the patterns to ignore, never {@code null}
+	 * @return a new {@code StackTraceFocuser}, never {@code null}
+	 */
+	public static StackTraceFocuser ignoreClassNames(final Collection<Pattern> classNameIgnores) {
+		return new StackTraceFocuser(toPredicates(classNameIgnores));
+	}
 
-	private static List<Predicate<StackTraceElement>> toPredicates(final List<Pattern> classNameIgnores) {
+	/**
+	 * Returns a lazily constructed {@code StackTraceFocuser} that ignores JDK stack frames. The
+	 * instance is created on the first call and reused afterward.
+	 *
+	 * @return the cached {@code StackTraceFocuser}, never {@code null}
+	 */
+	public static StackTraceFocuser defaultInstance() {
+		StackTraceFocuser instance = defaultInstance;
+		if (instance == null) {
+			synchronized (StackTraceFocuser.class) {
+				instance = defaultInstance;
+				if (instance == null) {
+					instance = builder().build();
+					defaultInstance = instance;
+				}
+			}
+		}
+		return instance;
+	}
+
+	/**
+	 * Creates a new {@link Builder} instance.
+	 *
+	 * @return the new builder, never {@code null}
+	 */
+	public static Builder builder() {
+		return new Builder();
+	}
+
+	private static List<Predicate<StackTraceElement>> toPredicates(final Collection<Pattern> classNameIgnores) {
 		return classNameIgnores.stream().
-				 map(StackTraceFocuser::ignoreClassName).
-				 collect(toList());
+				map(StackTraceFocuser::ignoreClassName).
+				collect(toList());
 	}
 	
-	private static Predicate<StackTraceElement> toPredicate(final List<Pattern> classNameIgnores) {
+	private static Predicate<StackTraceElement> toPredicate(final Collection<Pattern> classNameIgnores) {
 		return toPredicate(toPredicates(classNameIgnores));
 	}
 
-    /**
-	* Creates a new, default {@code StackTraceFocuser} ignoring frames from the JDK.
-	*
-	* @param <E> the exception type
-	*
-	* @return thew new {@code StackTraceFocuser}, never missing
-	*/
-    
-    public static <E extends Throwable> StackTraceFocuser<E> ignoreJavaClasses() {
-	   return ignoreClassNames(defaultClassNameIgnores);
-    }
+	/**
+	 * Creates a new {@code StackTraceFocuser} ignoring stack frames originating from the JDK.
+	 *
+	 * @return the new {@code StackTraceFocuser}, never {@code null}
+	 */
+	public static StackTraceFocuser ignoreJavaClasses() {
+		return ignoreClassNames(DEFAULT_JAVA_CLASS_PATTERNS);
+	}
 
-    /**
-	* Constructs a new {@code StackTraceFocuser} for the given <var>ignores</var> predicates.  All
-	* predicates are or'ed when checking if a frame should be ignored.
-	*
-	* @param ignores the predicates of frames to ignore, never missing
-	*/
-    public StackTraceFocuser( final Iterable<Predicate<StackTraceElement>> ignores) {
-	   ignore = toPredicate(ignores);
-    }
+	/**
+	 * Constructs a new {@code StackTraceFocuser} for the given predicates. All predicates are
+	 * combined with logical OR before being negated to decide if a frame remains visible.
+	 *
+	 * @param ignores the predicates describing frames to ignore, never {@code null}
+	 */
+	public StackTraceFocuser(final Iterable<Predicate<StackTraceElement>> ignores) {
+		ignore = toPredicate(ignores);
+	}
 
 	private static Predicate<StackTraceElement> toPredicate(final Iterable<Predicate<StackTraceElement>> ignores) {
 		return stream(ignores.spliterator(), false).
-				 reduce(Predicate::or).
-				 orElse(frame -> false).
-				 negate();
+				reduce(Predicate::or).
+				orElse(frame -> false).
+				negate();
 	}
-    
-    public <E extends Throwable> StackTraceFocuser<E> andIgnoreClassNames(final List<Pattern> classNameIgnores) {
-    	return new StackTraceFocuser<>(ignore, toPredicate(classNameIgnores));
-    }
-    
-    /**
-	* Constructs a new {@code StackTraceFocuser} for the given <var>ignores</var> predicates.
-	*
-	* @param first the first predicate of frames to ignore, never missing
-	* @param rest the optional remaining predicates of frames to ignore
-	*/
-    @SafeVarargs
-    public StackTraceFocuser( final Predicate<StackTraceElement> first,
-		  final Predicate<StackTraceElement>... rest) {
-	   this(Lists.asList(first, rest));
-    }
+	
+	/**
+	 * Returns a new {@code StackTraceFocuser} that ignores class names from this focuser and the
+	 * provided list.
+	 *
+	 * @param classNameIgnores additional class-name patterns to ignore, never {@code null}
+	 * @return a new {@code StackTraceFocuser} containing the combined ignores, never {@code null}
+	 */
+	public StackTraceFocuser andIgnoreClassNames(final List<Pattern> classNameIgnores) {
+		return new StackTraceFocuser(ignore, toPredicate(classNameIgnores));
+	}
+	
+	/**
+	 * Constructs a new {@code StackTraceFocuser} for the given predicates.
+	 *
+	 * @param first the first predicate describing frames to ignore, never {@code null}
+	 * @param rest the optional remaining predicates of frames to ignore
+	 */
+	@SafeVarargs
+	public StackTraceFocuser(final Predicate<StackTraceElement> first,
+		final Predicate<StackTraceElement>... rest) {
+		this(Lists.asList(first, rest));
+	}
 
-    @Override
-    public E apply(final E e) {
-	   stream(LinkedIterable.over(e, Objects::isNull, Throwable::getCause).spliterator(), true).
-			 forEach(x -> {
-				final List<StackTraceElement> found = asList(x.getStackTrace()).stream().
-					   filter(ignore).
-					   collect(toList());
-				try {
-					x.setStackTrace(found.toArray(new StackTraceElement[found.size()]));
-				} catch (Throwable t) {}
-			 });
-	   return e;
-    }
+	/**
+	 * Applies the focuser according to the {@link Function} contract, returning a trimmed clone of
+	 * the supplied throwable.
+	 *
+	 * @param throwable the throwable to focus, may be {@code null}
+	 * @return a cloned throwable with filtered stack traces, or {@code null}
+	 */
+	@Override
+	public Throwable apply(final Throwable throwable) {
+		return focus(throwable);
+	}
 
-    
-    public static Predicate<StackTraceElement> ignoreClassName( final Pattern className) {
-	   return frame -> className.matcher(frame.getClassName()).find();
-    }
+	/**
+	 * Applies the focuser, returning a trimmed clone of the supplied throwable with its original
+	 * concrete type.
+	 *
+	 * @param throwable the throwable to focus, may be {@code null}
+	 * @param <T> the throwable type
+	 * @return a cloned throwable with filtered stack traces, or {@code null}
+	 */
+	public <T extends Throwable> T applyTyped(final T throwable) {
+		return focus(throwable);
+	}
 
-    
-    public static Predicate<StackTraceElement> ignoreMethodName( final Pattern methodName) {
-	   return frame -> methodName.matcher(frame.getMethodName()).find();
-    }
+	private <T extends Throwable> T focus(final T throwable) {
+		if (throwable == null) {
+			return null;
+		}
+		return cloneThrowable(throwable);
+	}
 
-    
-    public static Predicate<StackTraceElement> ignoreFileName( final Pattern fileName) {
-	   return frame -> fileName.matcher(frame.getFileName()).find();
-    }
+	@SuppressWarnings("unchecked")
+	private <T extends Throwable> T cloneThrowable(final T original) {
+		final Throwable clonedCause = original.getCause() == null ? null : cloneThrowable(original.getCause());
+		final T copy = instantiateLike(original, clonedCause);
+		copy.setStackTrace(filteredStack(original.getStackTrace()));
+		for (final Throwable suppressed : original.getSuppressed()) {
+			copy.addSuppressed(cloneThrowable(suppressed));
+		}
+		return copy;
+	}
 
-    
-    public static Predicate<StackTraceElement> ignoreLineNumber( final Pattern lineNumber) {
-	   return frame -> lineNumber.matcher(String.valueOf(frame.getLineNumber())).find();
-    }
+	private StackTraceElement[] filteredStack(final StackTraceElement[] stackTrace) {
+		final List<StackTraceElement> found = asList(stackTrace).stream().filter(ignore).collect(toList());
+		return found.toArray(new StackTraceElement[found.size()]);
+	}
+
+	@SuppressWarnings("unchecked")
+	private <T extends Throwable> T instantiateLike(final T original, final Throwable cause) {
+		final Class<? extends Throwable> type = original.getClass();
+		final String message = original.getMessage();
+		final T withMessageCause = construct(type, new Class<?>[] { String.class, Throwable.class },
+			new Object[] { message, cause });
+		if (withMessageCause != null) {
+			return withMessageCause;
+		}
+		final T withMessage = construct(type, new Class<?>[] { String.class }, new Object[] { message });
+		if (withMessage != null) {
+			initCause(withMessage, cause);
+			return withMessage;
+		}
+		final T withCause = construct(type, new Class<?>[] { Throwable.class }, new Object[] { cause });
+		if (withCause != null) {
+			return withCause;
+		}
+		final T defaultCtor = construct(type, new Class<?>[0], new Object[0]);
+		if (defaultCtor != null) {
+			initCause(defaultCtor, cause);
+			return defaultCtor;
+		}
+		return (T) new RuntimeException(message, cause);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static <T extends Throwable> T construct(final Class<? extends Throwable> type,
+		final Class<?>[] parameterTypes, final Object[] args) {
+		try {
+			final Constructor<? extends Throwable> ctor = type.getDeclaredConstructor(parameterTypes);
+			ctor.setAccessible(true);
+			return (T) ctor.newInstance(args);
+		} catch (final ReflectiveOperationException ignored) {
+			return null;
+		}
+	}
+
+	private static void initCause(final Throwable target, final Throwable cause) {
+		if (cause == null) {
+			return;
+		}
+		try {
+			target.initCause(cause);
+		} catch (final IllegalStateException ignored) {
+			// cause already initialized
+		}
+	}
+
+	/**
+	 * Creates a predicate that matches stack frames whose class names match the provided pattern.
+	 *
+	 * @param className the class-name pattern, never {@code null}
+	 * @return the predicate, never {@code null}
+	 */
+	public static Predicate<StackTraceElement> ignoreClassName(final Pattern className) {
+		return frame -> className.matcher(frame.getClassName()).find();
+	}
+
+	/**
+	 * Creates a predicate that matches stack frames whose method names match the provided pattern.
+	 *
+	 * @param methodName the method-name pattern, never {@code null}
+	 * @return the predicate, never {@code null}
+	 */
+	public static Predicate<StackTraceElement> ignoreMethodName(final Pattern methodName) {
+		return frame -> methodName.matcher(frame.getMethodName()).find();
+	}
+
+	/**
+	 * Creates a predicate that matches stack frames whose file names match the provided pattern.
+	 *
+	 * @param fileName the file-name pattern, never {@code null}
+	 * @return the predicate, never {@code null}
+	 */
+	public static Predicate<StackTraceElement> ignoreFileName(final Pattern fileName) {
+		return frame -> fileName.matcher(frame.getFileName()).find();
+	}
+
+	/**
+	 * Creates a predicate that matches stack frames whose line numbers match the provided pattern.
+	 *
+	 * @param lineNumber the line-number pattern, never {@code null}
+	 * @return the predicate, never {@code null}
+	 */
+	public static Predicate<StackTraceElement> ignoreLineNumber(final Pattern lineNumber) {
+		return frame -> lineNumber.matcher(String.valueOf(frame.getLineNumber())).find();
+	}
+
+	/**
+	 * Fluent builder for composing {@link StackTraceFocuser} instances.
+	 */
+	public static final class Builder {
+		private static final List<Pattern> DEFAULT_CLASS_PATTERNS = Lists.newArrayList(
+			"^java\\.lang\\.", "^java\\.util\\.", "^javax\\.", "^sun\\.", "^com\\.sun\\.",
+			"^io\\.vertx\\.core\\.", "^com\\.mysql\\.cj\\.", "^io\\.netty\\.",
+			"^io\\.vertx\\.ext\\.web\\.").stream().map(Pattern::compile).collect(toList());
+		private final Set<Pattern> classNamePatterns = new HashSet<>();
+		private final Set<Pattern> methodNamePatterns = new HashSet<>();
+		private final Set<Pattern> fileNamePatterns = new HashSet<>();
+		private boolean skipDefaultPatterns = false;
+
+		private Builder() {
+		}
+
+		/**
+		 * Adds a class-name pattern to ignore via {@link Pattern}. Example:
+		 * {@code StackTraceFocuser.builder().addClass(Pattern.compile("^com\\.example"));}
+		 *
+		 * @param ignorePattern pattern describing classes to skip
+		 * @return this builder
+		 */
+		public Builder addClass(final Pattern ignorePattern) {
+			this.classNamePatterns.add(ignorePattern);
+			return this;
+		}
+
+		/**
+		 * Adds multiple class-name patterns to ignore.
+		 * Example: {@code builder.addClasses(List.of(Pattern.compile("^io\\.internal")));}
+		 *
+		 * @param ignorePatterns patterns describing classes to skip
+		 * @return this builder
+		 */
+		public Builder addClasses(final Collection<Pattern> ignorePatterns) {
+			this.classNamePatterns.addAll(ignorePatterns);
+			return this;
+		}
+
+		/**
+		 * Adds a class-name regex that is compiled before use.
+		 * Example: {@code builder.addClass("^com\\.example\\.internal");}
+		 *
+		 * @param ignoreRegex regex describing classes to skip
+		 * @return this builder
+		 */
+		public Builder addClass(final String ignoreRegex) {
+			this.classNamePatterns.add(compile(ignoreRegex));
+			return this;
+		}
+
+		/**
+		 * Adds multiple class-name regexes.
+		 * Example: {@code builder.addClass("^com\\.example", "^org\\.temp");}
+		 *
+		 * @param ignoreRegex regexes describing classes to skip
+		 * @return this builder
+		 */
+		public Builder addClass(final String... ignoreRegex) {
+			this.classNamePatterns.addAll(Stream.of(ignoreRegex).map(Pattern::compile).collect(toList()));
+			return this;
+		}
+
+		/**
+		 * Adds a method-name pattern to ignore. Example:
+		 * {@code builder.addMethod(Pattern.compile("^lambda$"));}
+		 *
+		 * @param ignorePattern pattern describing methods to skip
+		 * @return this builder
+		 */
+		public Builder addMethod(final Pattern ignorePattern) {
+			this.methodNamePatterns.add(ignorePattern);
+			return this;
+		}
+
+		/**
+		 * Adds a method-name regex to ignore.
+		 * Example: {@code builder.addMethod("^dispatch$");}
+		 *
+		 * @param ignoreRegex regex describing methods to skip
+		 * @return this builder
+		 */
+		public Builder addMethod(final String ignoreRegex) {
+			this.methodNamePatterns.add(compile(ignoreRegex));
+			return this;
+		}
+
+		/**
+		 * Adds multiple method-name regexes in one call.
+		 * Example: {@code builder.addMethod("^lambda$", "^helper$");}
+		 *
+		 * @param ignoreRegex regexes describing methods to skip
+		 * @return this builder
+		 */
+		public Builder addMethod(final String... ignoreRegex) {
+			this.methodNamePatterns.addAll(Stream.of(ignoreRegex).map(Pattern::compile).collect(toList()));
+			return this;
+		}
+
+		/**
+		 * Adds a collection of method-name patterns to ignore.
+		 * Example: {@code builder.addMethods(customMethodPatterns);}
+		 *
+		 * @param ignorePatterns patterns describing methods to skip
+		 * @return this builder
+		 */
+		public Builder addMethods(final Collection<Pattern> ignorePatterns) {
+			this.methodNamePatterns.addAll(ignorePatterns);
+			return this;
+		}
+
+		/**
+		 * Adds a file-name pattern to ignore.
+		 * Example: {@code builder.addFile(Pattern.compile("^Generated.*"));}
+		 *
+		 * @param ignorePattern pattern describing files to skip
+		 * @return this builder
+		 */
+		public Builder addFile(final Pattern ignorePattern) {
+			this.fileNamePatterns.add(ignorePattern);
+			return this;
+		}
+
+		/**
+		 * Adds a file-name regex to ignore.
+		 * Example: {@code builder.addFile(".*Proxy\\.java");}
+		 *
+		 * @param ignoreRegex regex describing files to skip
+		 * @return this builder
+		 */
+		public Builder addFile(final String ignoreRegex) {
+			this.fileNamePatterns.add(compile(ignoreRegex));
+			return this;
+		}
+
+		/**
+		 * Adds multiple file-name regexes in one step.
+		 * Example: {@code builder.addFile(".*Proxy\\.java", "^Synthetic.*\\.java");}
+		 *
+		 * @param ignoreRegex regexes describing files to skip
+		 * @return this builder
+		 */
+		public Builder addFile(final String... ignoreRegex) {
+			this.fileNamePatterns.addAll(Stream.of(ignoreRegex).map(Pattern::compile).collect(toList()));
+			return this;
+		}
+
+		/**
+		 * Adds a collection of file-name patterns to ignore.
+		 * Example: {@code builder.addFiles(testFilePatterns);}
+		 *
+		 * @param ignorePatterns patterns describing files to skip
+		 * @return this builder
+		 */
+		public Builder addFiles(final Collection<Pattern> ignorePatterns) {
+			this.fileNamePatterns.addAll(ignorePatterns);
+			return this;
+		}
+
+		/**
+		 * Skips the built-in default ignore patterns so only user-specified predicates apply.
+		 * Example: {@code builder.skipDefaultPatterns().addClass("^com\\.example");}
+		 *
+		 * @return this builder
+		 */
+		public Builder skipDefaultPatterns() {
+			this.skipDefaultPatterns = true;
+			return this;
+		}
+
+		/**
+		 * Builds the {@link StackTraceFocuser} using the configured predicates.
+		 * Example: {@code StackTraceFocuser focuser = builder.addClass("^com\\.app").build();}
+		 *
+		 * @return configured focuser
+		 */
+		public StackTraceFocuser build() {
+			final Set<Pattern> finalClassPatterns = new HashSet<>(classNamePatterns);
+			if (!skipDefaultPatterns) {
+				finalClassPatterns.addAll(DEFAULT_CLASS_PATTERNS);
+			}
+
+			final List<Predicate<StackTraceElement>> predicates = Lists.newArrayList();
+			predicates.addAll(finalClassPatterns.stream().map(StackTraceFocuser::ignoreClassName).collect(toList()));
+			predicates.addAll(methodNamePatterns.stream().map(StackTraceFocuser::ignoreMethodName)
+				.collect(toList()));
+			predicates.addAll(fileNamePatterns.stream().map(StackTraceFocuser::ignoreFileName)
+				.collect(toList()));
+
+			return new StackTraceFocuser(predicates);
+		}
+	}
 }
