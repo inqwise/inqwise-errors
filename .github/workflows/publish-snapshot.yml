@@ -33,7 +33,7 @@ jobs:
 
       - name: Verify snapshot version
         run: |
-          VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
           echo "Detected version: $VERSION"
           if [[ "$VERSION" != *-SNAPSHOT ]]; then
             echo "::error ::Project version $VERSION is not a SNAPSHOT."
