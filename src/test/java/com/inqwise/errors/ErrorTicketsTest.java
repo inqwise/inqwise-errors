@@ -135,6 +135,13 @@ class ErrorTicketsTest {
         }
 
         @Test
+        void checkAnyNotNullArrayWithConsumerAllowsCustomization() {
+            assertThrows(NullPointerException.class,
+                () -> ErrorTickets.checkAnyNotNull(new Object[] { null },
+                    builder -> builder.withErrorDetails("custom-array").withStatusCode(422)));
+        }
+
+        @Test
         void checkAllNotNullThrowsWhenAnyNull() {
             var values = new java.util.ArrayList<Object>();
             values.add("value");
@@ -144,6 +151,14 @@ class ErrorTicketsTest {
                 () -> ErrorTickets.checkAllNotNull(values, "invalid"));
 
             assertEquals("invalid", ex.getErrorDetails());
+        }
+
+        @Test
+        void checkAllNotNullArrayThrowsWhenAnyNull() {
+            var ex = assertThrows(ErrorTicket.class,
+                () -> ErrorTickets.checkAllNotNull(Arrays.asList("value", null), "invalid-array"));
+
+            assertEquals("invalid-array", ex.getErrorDetails());
         }
 
         @Test
@@ -181,6 +196,13 @@ class ErrorTicketsTest {
             var value = UUID.randomUUID();
 
             assertSame(value, ErrorTickets.checkNotNull(value, "ok"));
+        }
+
+        @Test
+        void checkNotNullWithConsumerReturnsReference() {
+            var value = UUID.randomUUID();
+
+            assertSame(value, ErrorTickets.checkNotNull(value, builder -> builder.withStatusCode(409)));
         }
 
         @Test
@@ -239,6 +261,15 @@ class ErrorTicketsTest {
                 () -> assertEquals(ErrorCodes.ArgumentWrong, ex.getError()),
                 () -> assertEquals("invalid", ex.getErrorDetails())
             );
+        }
+
+        @Test
+        void checkArgumentUsesDetailsToString() {
+            var details = Arrays.asList("a", "b");
+            var ex = assertThrows(ErrorTicket.class,
+                () -> ErrorTickets.checkArgument(false, details));
+
+            assertEquals(details.toString(), ex.getErrorDetails());
         }
 
         @Test

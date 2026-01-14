@@ -1,0 +1,49 @@
+name: Publish Snapshot
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+jobs:
+  snapshot:
+    name: Deploy Snapshot to Sonatype
+    runs-on: ubuntu-latest
+    if: github.repository == 'inqwise/inqwise-errors'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: 21
+          distribution: temurin
+          cache: maven
+          server-id: sonatype-oss-snapshots
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+
+      - name: Verify snapshot version
+        run: |
+          VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "Detected version: $VERSION"
+          if [[ "$VERSION" != *-SNAPSHOT ]]; then
+            echo "::error ::Project version $VERSION is not a SNAPSHOT."
+            exit 1
+          fi
+
+      - name: Build and test
+        run: ./mvnw --batch-mode clean verify
+
+      - name: Deploy snapshot
+        run: ./mvnw --batch-mode -DskipTests -Dgpg.skip=true deploy
+        env:
+          MAVEN_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}

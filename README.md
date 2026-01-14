@@ -2,7 +2,11 @@
 [![Release](https://github.com/inqwise/inqwise-errors/actions/workflows/release.yml/badge.svg)](https://github.com/inqwise/inqwise-errors/actions/workflows/release.yml)
 [![CodeQL](https://github.com/inqwise/inqwise-errors/actions/workflows/codeql.yml/badge.svg)](https://github.com/inqwise/inqwise-errors/actions/workflows/codeql.yml)
 [![Snyk Security](https://github.com/inqwise/inqwise-errors/actions/workflows/snyk.yml/badge.svg)](https://github.com/inqwise/inqwise-errors/actions/workflows/snyk.yml)
+
 [![Maven Central](https://img.shields.io/maven-central/v/com.inqwise/inqwise-errors.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:%22com.inqwise%22%20AND%20a:%22inqwise-errors%22)
+[![Latest Snapshot](https://img.shields.io/badge/dynamic/xml?color=orange&label=Latest%20Snapshot&query=%2F%2Fmetadata%2Fversioning%2Fversions%2Fversion%5Blast()%5D&url=https%3A%2F%2Fcentral.sonatype.com%2Frepository%2Fmaven-snapshots%2Fcom%2Finqwise%2Finqwise-errors%2Fmaven-metadata.xml)](https://central.sonatype.com/repository/maven-snapshots/com/inqwise/inqwise-errors)
+[![Snapshot Published](https://img.shields.io/badge/dynamic/xml?color=blue&label=Snapshot%20Published&query=%2F%2Fmetadata%2Fversioning%2FlastUpdated&url=https%3A%2F%2Fcentral.sonatype.com%2Frepository%2Fmaven-snapshots%2Fcom%2Finqwise%2Finqwise-errors%2Fmaven-metadata.xml)](https://central.sonatype.com/repository/maven-snapshots/com/inqwise/inqwise-errors)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![codecov](https://codecov.io/gh/inqwise/inqwise-errors/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/inqwise/inqwise-errors)
 [![Java Version](https://img.shields.io/badge/Java-21%2B-blue.svg)](https://openjdk.java.net/projects/jdk/21/)
