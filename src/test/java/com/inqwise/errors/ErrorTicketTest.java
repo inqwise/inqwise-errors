@@ -262,4 +262,157 @@ class CoreErrorTicketTest {
             );
         }
     }
+
+    @Nested
+    @DisplayName("Parsing and Accessor Tests")
+    class ParsingTest {
+
+        @Test
+        @DisplayName("parse should resolve default group when provided")
+        void parseUsesDefaultGroup() {
+            var json = new JsonObject()
+                .put(ErrorTicket.Keys.CODE, ErrorCodes.NotFound.toString())
+                .put(ErrorTicket.Keys.DETAIL, "Missing")
+                .put(ErrorTicket.Keys.STATUS, 404);
+
+            var ticket = ErrorTicket.parse(json, ErrorCodes.GROUP);
+
+            assertAll("Parsed fields",
+                () -> assertEquals(ErrorCodes.NotFound, ticket.getError()),
+                () -> assertEquals(ErrorCodes.GROUP, ticket.getErrorGroup()),
+                () -> assertEquals("Missing", ticket.getErrorDetails())
+            );
+        }
+
+        @Test
+        @DisplayName("parse should use builtin ErrorCodes when group is absent")
+        void parseWithoutGroupUsesBuiltins() {
+            var json = new JsonObject()
+                .put(ErrorTicket.Keys.CODE, ErrorCodes.NotImplemented.toString())
+                .put(ErrorTicket.Keys.DETAIL, "Missing feature");
+
+            var ticket = ErrorTicket.parse(json);
+
+            assertAll("Parsed defaults",
+                () -> assertEquals(ErrorCodes.NotImplemented, ticket.getError()),
+                () -> assertNull(ticket.getErrorGroup())
+            );
+        }
+
+        @Test
+        @DisplayName("getError/optError should respect requested type")
+        void getErrorAndOptError() {
+            var ticket = ErrorTicket.builder()
+                .withError(ErrorCodes.NotFound)
+                .withErrorGroup(ErrorCodes.GROUP)
+                .build();
+
+            assertAll("Typed accessors",
+                () -> assertEquals(ErrorCodes.NotFound, ticket.getError(ErrorCodes.class)),
+                () -> assertEquals(ErrorCodes.NotFound, ticket.optError(ErrorCodes.class)),
+                () -> assertNull(ticket.optError(OAuthErrorCodes.class))
+            );
+        }
+
+        @Test
+        @DisplayName("getErrorAsErrorCodes should return fallback when needed")
+        void getErrorAsErrorCodesDefaults() {
+            var builtin = ErrorTicket.builder()
+                .withError(ErrorCodes.NotFound)
+                .withErrorGroup(ErrorCodes.GROUP)
+                .build();
+
+            var ticket = ErrorTicket.builder()
+                .withError(OAuthErrorCodes.InvalidClient)
+                .withErrorGroup("oauth")
+                .build();
+
+            assertAll("ErrorCodes mapping",
+                () -> assertEquals(ErrorCodes.NotFound, builtin.getErrorAsErrorCodes()),
+                () -> assertEquals(ErrorCodes.GeneralError, ticket.getErrorAsErrorCodes())
+            );
+        }
+    }
+
+    @Nested
+    @DisplayName("Propagation Tests")
+    class PropagationTest {
+
+        @Test
+        @DisplayName("propagate should copy an existing ErrorTicket")
+        void propagateFromErrorTicket() {
+            var original = ErrorTicket.builder()
+                .withError(ErrorCodes.ArgumentWrong)
+                .withErrorGroup(ErrorCodes.GROUP)
+                .withErrorDetails("Invalid")
+                .withStatusCode(400)
+                .addExtension("traceId", "t-1")
+                .build();
+
+            var propagated = ErrorTicket.propagate(original);
+
+            assertAll("Propagated ticket",
+                () -> assertEquals(original.getError(), propagated.getError()),
+                () -> assertEquals(original.getErrorDetails(), propagated.getErrorDetails()),
+                () -> assertEquals(original.getErrorId(), propagated.getErrorId()),
+                () -> assertEquals(original.getStatus(), propagated.getStatus()),
+                () -> assertEquals("t-1", propagated.toJson().getString("traceId"))
+            );
+        }
+
+        @Test
+        @DisplayName("propagate should use ProvidesErrorTicket builder")
+        void propagateFromProvidesErrorTicket() {
+            var exception = new NotImplementedException("Missing feature", "NI-1");
+
+            var ticket = ErrorTicket.propagate(exception);
+
+            assertAll("Provided ticket",
+                () -> assertEquals(ErrorCodes.NotImplemented, ticket.getError()),
+                () -> assertEquals("Missing feature", ticket.getErrorDetails())
+            );
+        }
+
+        @Test
+        @DisplayName("propagate should normalize generic throwables")
+        void propagateFromThrowable() {
+            var ticket = ErrorTicket.propagate(new NullPointerException());
+
+            assertAll("Normalized ticket",
+                () -> assertEquals(ErrorCodes.GeneralError, ticket.getError()),
+                () -> assertEquals("NullPointer", ticket.getErrorDetails())
+            );
+        }
+    }
+
+    @Nested
+    @DisplayName("Builder Copy Tests")
+    class BuilderCopyTest {
+
+        @Test
+        @DisplayName("builderFrom should copy all fields")
+        void builderFromCopiesFields() {
+            var original = ErrorTicket.builder()
+                .withError(ErrorCodes.NotLoggedIn)
+                .withErrorGroup(ErrorCodes.GROUP)
+                .withErrorDetails("Auth required")
+                .withStatusCode(401)
+                .type("https://errors.example.com/auth")
+                .title("Auth Error")
+                .instance("/login")
+                .addExtension("requestId", "r-9")
+                .build();
+
+            var copy = ErrorTicket.builderFrom(original).build();
+
+            assertAll("Copied fields",
+                () -> assertEquals(original.getError(), copy.getError()),
+                () -> assertEquals(original.getErrorGroup(), copy.getErrorGroup()),
+                () -> assertEquals(original.getErrorDetails(), copy.getErrorDetails()),
+                () -> assertEquals(original.getStatus(), copy.getStatus()),
+                () -> assertEquals(original.getErrorId(), copy.getErrorId()),
+                () -> assertEquals(original.toJson().getString("requestId"), copy.toJson().getString("requestId"))
+            );
+        }
+    }
 }
