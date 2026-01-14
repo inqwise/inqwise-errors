@@ -40,7 +40,10 @@ class ErrorTicketsTest {
         void generalCreatesGeneralErrorTicket() {
             var ticket = ErrorTickets.general("boom");
 
-            assertEquals(ErrorCodes.GeneralError, ticket.getError());
+            assertAll(
+                () -> assertEquals(ErrorCodes.GeneralError, ticket.getError()),
+                () -> assertEquals("boom", ticket.getErrorDetails())
+            );
         }
 
         @Test
@@ -67,7 +70,10 @@ class ErrorTicketsTest {
         void notImplementedShortcutUsesDefaultMessage() {
             var ticket = ErrorTickets.notImplemented("Fallback");
 
-            assertEquals("Fallback", ticket.getErrorDetails());
+            assertAll(
+                () -> assertEquals("Fallback", ticket.getErrorDetails()),
+                () -> assertEquals(501, ticket.getStatus())
+            );
         }
     }
 
@@ -88,6 +94,22 @@ class ErrorTicketsTest {
                 () -> assertEquals(ErrorCodes.ArgumentNull, ex.getError()),
                 () -> assertEquals("missing", ex.getErrorDetails())
             );
+        }
+
+        @Test
+        void checkAnyNotNullArrayThrowsWhenAllNull() {
+            var ex = assertThrows(ErrorTicket.class,
+                () -> ErrorTickets.checkAnyNotNull(new Object[] { null, null }, "missing"));
+
+            assertEquals("missing", ex.getErrorDetails());
+        }
+
+        @Test
+        void checkAnyNotNullThrowsWhenValuesNull() {
+            var ex = assertThrows(ErrorTicket.class,
+                () -> ErrorTickets.checkAnyNotNull((Iterable<Object>) null, "missing"));
+
+            assertEquals(ErrorCodes.ArgumentNull, ex.getError());
         }
 
         @Test
@@ -122,6 +144,14 @@ class ErrorTicketsTest {
                 () -> ErrorTickets.checkAllNotNull(values, "invalid"));
 
             assertEquals("invalid", ex.getErrorDetails());
+        }
+
+        @Test
+        void checkAllNotNullThrowsWhenValuesNull() {
+            var ex = assertThrows(ErrorTicket.class,
+                () -> ErrorTickets.checkAllNotNull((Iterable<?>) null, "invalid"));
+
+            assertEquals(ErrorCodes.ArgumentNull, ex.getError());
         }
 
         @Test
@@ -163,6 +193,12 @@ class ErrorTicketsTest {
                 () -> assertEquals(ErrorCodes.GROUP, ex.getErrorGroup()),
                 () -> assertEquals("required", ex.getErrorDetails())
             );
+        }
+
+        @Test
+        void checkNotNullRejectsNullErrorCode() {
+            assertThrows(NullPointerException.class,
+                () -> ErrorTickets.checkNotNull(null, "required", (ErrorCode) null));
         }
 
         @Test
@@ -214,6 +250,12 @@ class ErrorTicketsTest {
                 () -> assertEquals(ErrorCodes.NotPermitted, ex.getError()),
                 () -> assertEquals(ErrorCodes.GROUP, ex.getErrorGroup())
             );
+        }
+
+        @Test
+        void checkArgumentRejectsNullErrorCode() {
+            assertThrows(NullPointerException.class,
+                () -> ErrorTickets.checkArgument(false, "bad", (ErrorCode) null));
         }
 
         @Test
