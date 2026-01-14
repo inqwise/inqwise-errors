@@ -210,6 +210,22 @@ class CoreErrorTicketTest {
                 () -> assertEquals(original.getMessage(), copy.getMessage())
             );
         }
+
+        @Test
+        @DisplayName("constructor should preserve code when group is null")
+        void constructorWithUnknownCodeAndNoGroup() {
+            var json = new JsonObject()
+                .put(ErrorTicket.Keys.CODE, "unknown_code")
+                .put(ErrorTicket.Keys.DETAIL, "Missing");
+
+            var ticket = new ErrorTicket(json);
+
+            assertAll("Unknown code without group",
+                () -> assertNull(ticket.getErrorGroup()),
+                () -> assertEquals("unknown_code", ticket.getErrorUnsafe().toString()),
+                () -> assertEquals("Missing", ticket.getErrorDetails())
+            );
+        }
     }
 
     @Nested
@@ -300,6 +316,21 @@ class CoreErrorTicketTest {
         }
 
         @Test
+        @DisplayName("parse should allow null error when code is absent")
+        void parseWithNoCodeLeavesErrorNull() {
+            var json = new JsonObject()
+                .put(ErrorTicket.Keys.DETAIL, "Missing")
+                .put(ErrorTicket.Keys.STATUS, 404);
+
+            var ticket = ErrorTicket.parse(json);
+
+            assertAll("Parsed without code",
+                () -> assertNull(ticket.getError()),
+                () -> assertEquals("Missing", ticket.getErrorDetails())
+            );
+        }
+
+        @Test
         @DisplayName("getError/optError should respect requested type")
         void getErrorAndOptError() {
             var ticket = ErrorTicket.builder()
@@ -383,6 +414,29 @@ class CoreErrorTicketTest {
                 () -> assertEquals("NullPointer", ticket.getErrorDetails())
             );
         }
+
+        @Test
+        @DisplayName("propagate should format details for non-null message")
+        void propagateWithMessage() {
+            var ticket = ErrorTicket.propagate(new IllegalStateException("Bad"));
+
+            assertAll("Message formatting",
+                () -> assertEquals(ErrorCodes.GeneralError, ticket.getError()),
+                () -> assertEquals("java.lang.IllegalStateException:Bad", ticket.getErrorDetails())
+            );
+        }
+
+        @Test
+        @DisplayName("propagate should apply builder mutation")
+        void propagateWithBuilderMutation() {
+            var ticket = ErrorTicket.propagate(new RuntimeException("boom"),
+                builder -> builder.withError(ErrorCodes.ArgumentNull).withStatusCode(400));
+
+            assertAll("Mutated ticket",
+                () -> assertEquals(ErrorCodes.ArgumentNull, ticket.getError()),
+                () -> assertEquals(400, ticket.getStatus())
+            );
+        }
     }
 
     @Nested
@@ -413,6 +467,86 @@ class CoreErrorTicketTest {
                 () -> assertEquals(original.getErrorId(), copy.getErrorId()),
                 () -> assertEquals(original.toJson().getString("requestId"), copy.toJson().getString("requestId"))
             );
+        }
+    }
+
+    @Nested
+    @DisplayName("Utility Coverage Tests")
+    class UtilityCoverageTest {
+
+        @Test
+        @DisplayName("optStatusCode should wrap when set")
+        void optStatusCodeReturnsOptional() {
+            var ticket = ErrorTicket.builder()
+                .withError(ErrorCodes.NotFound)
+                .withStatusCode(404)
+                .build();
+
+            assertEquals(404, ticket.optStatusCode().orElseThrow());
+        }
+
+        @Test
+        @DisplayName("toString should include populated fields")
+        void toStringIncludesFields() {
+            var ticket = ErrorTicket.builder()
+                .withError(ErrorCodes.NotFound)
+                .withErrorGroup(ErrorCodes.GROUP)
+                .withErrorDetails("Missing")
+                .withStatusCode(404)
+                .type("https://errors.example.com/not-found")
+                .title("Not Found")
+                .instance("/orders/1")
+                .addExtension("traceId", "t-1")
+                .build();
+
+            var value = ticket.toString();
+
+            assertAll("toString fields",
+                () -> assertTrue(value.contains("errorId=")),
+                () -> assertTrue(value.contains("error=NotFound")),
+                () -> assertTrue(value.contains("errorGroup=default")),
+                () -> assertTrue(value.contains("errorDetails=Missing")),
+                () -> assertTrue(value.contains("statusCode=404")),
+                () -> assertTrue(value.contains("type=https://errors.example.com/not-found")),
+                () -> assertTrue(value.contains("title=Not Found")),
+                () -> assertTrue(value.contains("instance=/orders/1")),
+                () -> assertTrue(value.contains("traceId=t-1"))
+            );
+        }
+
+        @Test
+        @DisplayName("isDigitsNoLeadingZeros should validate numeric strings")
+        void isDigitsNoLeadingZerosValidation() {
+            assertAll("digits check",
+                () -> assertEquals(true, ErrorTicket.isDigitsNoLeadingZeros("12")),
+                () -> assertEquals(false, ErrorTicket.isDigitsNoLeadingZeros("012")),
+                () -> assertEquals(false, ErrorTicket.isDigitsNoLeadingZeros("1a2")),
+                () -> assertEquals(false, ErrorTicket.isDigitsNoLeadingZeros(""))
+            );
+        }
+
+        @Test
+        @DisplayName("UndefinedErrorCode should parse numeric code when possible")
+        void undefinedErrorCodeParsesDigits() {
+            var ticket = ErrorTicket.builder().build();
+            var numeric = ticket.new UndefinedErrorCode("404", "default");
+            var nonNumeric = ticket.new UndefinedErrorCode("not_found", null);
+
+            assertAll("UndefinedErrorCode parsing",
+                () -> assertEquals(404, numeric.getStatusCode()),
+                () -> assertEquals("default", numeric.group()),
+                () -> assertEquals(0, nonNumeric.getStatusCode()),
+                () -> assertNull(nonNumeric.group())
+            );
+        }
+
+        @Test
+        @DisplayName("Builder generate should honor preventFirstCharDigit")
+        void builderGeneratePreventsLeadingDigit() {
+            String value = ErrorTicket.Builder.generate(6, true);
+
+            assertTrue(value.length() == 6);
+            assertTrue(Character.isLetter(value.charAt(0)));
         }
     }
 }

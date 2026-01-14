@@ -72,7 +72,7 @@ public final class StackTraceFocuser implements Function<Throwable, Throwable> {
 				collect(toList());
 	}
 	
-	private static Predicate<StackTraceElement> toPredicate(final Collection<Pattern> classNameIgnores) {
+	static Predicate<StackTraceElement> toPredicate(final Collection<Pattern> classNameIgnores) {
 		return toPredicate(toPredicates(classNameIgnores));
 	}
 
@@ -173,7 +173,7 @@ public final class StackTraceFocuser implements Function<Throwable, Throwable> {
 	}
 
 	@SuppressWarnings("unchecked")
-	private <T extends Throwable> T instantiateLike(final T original, final Throwable cause) {
+	<T extends Throwable> T instantiateLike(final T original, final Throwable cause) {
 		final Class<? extends Throwable> type = original.getClass();
 		final String message = original.getMessage();
 		final T withMessageCause = construct(type, new Class<?>[] { String.class, Throwable.class },
@@ -199,7 +199,7 @@ public final class StackTraceFocuser implements Function<Throwable, Throwable> {
 	}
 
 	@SuppressWarnings("unchecked")
-	private static <T extends Throwable> T construct(final Class<? extends Throwable> type,
+	static <T extends Throwable> T construct(final Class<? extends Throwable> type,
 		final Class<?>[] parameterTypes, final Object[] args) {
 		try {
 			final Constructor<? extends Throwable> ctor = type.getDeclaredConstructor(parameterTypes);

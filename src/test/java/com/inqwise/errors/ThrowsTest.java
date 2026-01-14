@@ -56,10 +56,22 @@ class ThrowsTest {
     void unboxVarargsPeelsThroughConfiguredTypes() {
         var deepest = new java.io.IOException("core");
         var second = new CompletionException(deepest);
-        var outer = new RuntimeException(second);
+        var third = new IllegalStateException(second);
+        var outer = new RuntimeException(third);
 
-        var result = Throws.unbox(outer, RuntimeException.class, CompletionException.class);
+        var result = Throws.unbox(outer, RuntimeException.class, IllegalStateException.class,
+            CompletionException.class);
 
         assertSame(deepest, result);
+    }
+
+    @Test
+    void notFoundFormatsMessage() {
+        var ex = Throws.notFound("user {} missing", 12);
+
+        assertAll(
+            () -> assertTrue(ex instanceof NotFoundException),
+            () -> assertEquals("Item Not Found:user 12 missing", ex.getMessage())
+        );
     }
 }

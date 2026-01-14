@@ -2,7 +2,6 @@ package com.inqwise.errors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.lang.reflect.Method;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -86,10 +85,7 @@ class StackTraceFocuserTest {
 
 	@Test
 	void toPredicateFromClassPatternsKeepsNonMatchingFrames() throws Exception {
-		Method method = StackTraceFocuser.class.getDeclaredMethod("toPredicate", java.util.Collection.class);
-		method.setAccessible(true);
-		@SuppressWarnings("unchecked")
-		Predicate<StackTraceElement> predicate = (Predicate<StackTraceElement>) method.invoke(null,
+		Predicate<StackTraceElement> predicate = StackTraceFocuser.toPredicate(
 			List.of(Pattern.compile("^com\\.drop\\.")));
 
 		var dropped = new StackTraceElement("com.drop.Target", "run", "Target.java", 1);
@@ -158,17 +154,13 @@ class StackTraceFocuserTest {
 
 	@Test
 	void instantiateLikeUsesAvailableConstructors() throws Exception {
-		Method method = StackTraceFocuser.class.getDeclaredMethod("instantiateLike", Throwable.class,
-			Throwable.class);
-		method.setAccessible(true);
-
 		var focuser = StackTraceFocuser.builder().skipDefaultPatterns().build();
 		var cause = new IllegalStateException("cause");
 
-		var msgCause = (MsgCauseException) method.invoke(focuser, new MsgCauseException("msg"), cause);
-		var stringOnly = (StringOnlyException) method.invoke(focuser, new StringOnlyException("text"), cause);
-		var causeOnly = (CauseOnlyException) method.invoke(focuser, new CauseOnlyException(cause), cause);
-		var noArg = (NoArgException) method.invoke(focuser, new NoArgException(), cause);
+		var msgCause = focuser.instantiateLike(new MsgCauseException("msg"), cause);
+		var stringOnly = focuser.instantiateLike(new StringOnlyException("text"), cause);
+		var causeOnly = focuser.instantiateLike(new CauseOnlyException(cause), cause);
+		var noArg = focuser.instantiateLike(new NoArgException(), cause);
 
 		assertAll(
 			() -> assertEquals("msg", msgCause.getMessage()),
@@ -182,13 +174,9 @@ class StackTraceFocuserTest {
 
 	@Test
 	void constructReturnsNullWhenCtorMissing() throws Exception {
-		Method method = StackTraceFocuser.class.getDeclaredMethod("construct", Class.class, Class[].class,
-			Object[].class);
-		method.setAccessible(true);
-
-		var created = method.invoke(null, StringOnlyException.class, new Class<?>[] { String.class },
+		var created = StackTraceFocuser.construct(StringOnlyException.class, new Class<?>[] { String.class },
 			new Object[] { "ok" });
-		var missing = method.invoke(null, StringOnlyException.class, new Class<?>[] { Integer.class },
+		var missing = StackTraceFocuser.construct(StringOnlyException.class, new Class<?>[] { Integer.class },
 			new Object[] { 1 });
 
 		assertAll(

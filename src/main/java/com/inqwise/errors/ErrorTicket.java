@@ -568,7 +568,7 @@ public class ErrorTicket extends RuntimeException {
 		// Extensions for RFC 7807 and OAuth 2.0
 		private Map<String, Object> extensions = new java.util.HashMap<>();
 		
-		private static String generate(int size, boolean preventFirstCharDigit) {
+	static String generate(int size, boolean preventFirstCharDigit) {
 			StringBuilder sb = new StringBuilder(size);
 			
 			// Add the prefix if specified
@@ -806,7 +806,7 @@ public class ErrorTicket extends RuntimeException {
 				.toString();
 	}
 	
-	private static final boolean isDigitsNoLeadingZeros(String s) {
+	static boolean isDigitsNoLeadingZeros(String s) {
 		if (s == null || s.isEmpty()) return false;
 
 		int len = s.length();
