@@ -205,7 +205,7 @@ try {
 ```
 
 ### `StackTraceFocuser`
-`StackTraceFocuser` trims stack traces by cloning exceptions and removing frames that match configured predicates. Use `StackTraceFocuser.defaultInstance()` for the built-in JDK-filtering variant or the fluent builder to specify class, method, and file patterns.
+`StackTraceFocuser` trims stack traces in place by removing frames that match configured predicates. Use `StackTraceFocuser.defaultInstance()` for the built-in JDK-filtering variant or the fluent builder to specify class, method, and file patterns.
 
 **Example: Custom Stack Trace Filtering**
 ```java
@@ -219,7 +219,7 @@ public class CustomStackTraceFocusing {
             StackTraceFocuser focuser = StackTraceFocuser.builder()
                 .addClass("^java\\.")                 // ignore stdlib classes
                 .addClass("^org\\.junit\\.")        // ignore test harness
-                .addMethod("^lambda$")                // strip synthetic lambdas
+                .addMethod("^lambda\\$get\\$2$")      // strip synthetic lambdas
                 .addFile(".*Proxy\\.java")           // strip generated proxies
                 .build();
 

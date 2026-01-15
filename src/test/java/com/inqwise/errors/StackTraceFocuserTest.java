@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 class StackTraceFocuserTest {
 
 	@Test
-	void ignoreJavaClassesReturnsTrimmedCloneWithoutMutatingOriginal() {
+	void ignoreJavaClassesTrimsInPlaceAcrossCauseAndSuppressed() {
 		var cause = new IllegalStateException("cause");
 		cause.setStackTrace(new StackTraceElement[] {
 			new StackTraceElement("java.lang.Thread", "run", "Thread.java", 10),
@@ -35,16 +35,13 @@ class StackTraceFocuserTest {
 		var focused = focuser.apply(original);
 
 		assertAll(
-			() -> assertNotSame(original, focused),
-			() -> assertEquals("boom", focused.getMessage()),
-			() -> assertEquals(2, original.getStackTrace().length),
+			() -> assertSame(original, focused),
+			() -> assertEquals("boom", original.getMessage()),
 			() -> assertEquals(1, focused.getStackTrace().length),
 			() -> assertEquals("com.inqwise.errors.Main", focused.getStackTrace()[0].getClassName()),
-			() -> assertNotSame(original.getCause(), focused.getCause()),
 			() -> assertEquals(1, focused.getCause().getStackTrace().length),
 			() -> assertEquals("com.inqwise.errors.Sample",
 				focused.getCause().getStackTrace()[0].getClassName()),
-			() -> assertEquals(2, original.getSuppressed()[0].getStackTrace().length),
 			() -> assertEquals(1, focused.getSuppressed().length),
 			() -> assertEquals("com.inqwise.errors.Helper",
 				focused.getSuppressed()[0].getStackTrace()[0].getClassName())
@@ -67,7 +64,7 @@ class StackTraceFocuserTest {
 		var focused = focuser.apply(original);
 
 		assertAll(
-			() -> assertEquals(4, original.getStackTrace().length),
+			() -> assertSame(original, focused),
 			() -> assertEquals(1, focused.getStackTrace().length),
 			() -> assertEquals("keep.Visible", focused.getStackTrace()[0].getClassName()),
 			() -> assertEquals("stay", focused.getStackTrace()[0].getMethodName()),
@@ -110,7 +107,10 @@ class StackTraceFocuserTest {
 
 		var focused = combined.apply(original);
 
-		assertEquals(0, focused.getStackTrace().length);
+		assertAll(
+			() -> assertSame(original, focused),
+			() -> assertEquals(0, focused.getStackTrace().length)
+		);
 	}
 
 	@Test
@@ -129,6 +129,7 @@ class StackTraceFocuserTest {
 		var focused = focuser.apply(original);
 
 		assertAll(
+			() -> assertSame(original, focused),
 			() -> assertEquals(1, focused.getStackTrace().length),
 			() -> assertEquals("com.keep.Type", focused.getStackTrace()[0].getClassName())
 		);
@@ -146,42 +147,10 @@ class StackTraceFocuserTest {
 		var focused = focuser.applyTyped(original);
 
 		assertAll(
+			() -> assertSame(original, focused),
 			() -> assertTrue(focused instanceof CustomException),
 			() -> assertEquals(1, focused.getStackTrace().length),
 			() -> assertEquals("com.keep.Type", focused.getStackTrace()[0].getClassName())
-		);
-	}
-
-	@Test
-	void instantiateLikeUsesAvailableConstructors() throws Exception {
-		var focuser = StackTraceFocuser.builder().skipDefaultPatterns().build();
-		var cause = new IllegalStateException("cause");
-
-		var msgCause = focuser.instantiateLike(new MsgCauseException("msg"), cause);
-		var stringOnly = focuser.instantiateLike(new StringOnlyException("text"), cause);
-		var causeOnly = focuser.instantiateLike(new CauseOnlyException(cause), cause);
-		var noArg = focuser.instantiateLike(new NoArgException(), cause);
-
-		assertAll(
-			() -> assertEquals("msg", msgCause.getMessage()),
-			() -> assertSame(cause, msgCause.getCause()),
-			() -> assertEquals("text", stringOnly.getMessage()),
-			() -> assertSame(cause, stringOnly.getCause()),
-			() -> assertSame(cause, causeOnly.getCause()),
-			() -> assertSame(cause, noArg.getCause())
-		);
-	}
-
-	@Test
-	void constructReturnsNullWhenCtorMissing() throws Exception {
-		var created = StackTraceFocuser.construct(StringOnlyException.class, new Class<?>[] { String.class },
-			new Object[] { "ok" });
-		var missing = StackTraceFocuser.construct(StringOnlyException.class, new Class<?>[] { Integer.class },
-			new Object[] { 1 });
-
-		assertAll(
-			() -> assertNotNull(created),
-			() -> assertNull(missing)
 		);
 	}
 
@@ -219,6 +188,7 @@ class StackTraceFocuserTest {
 		var focused = focuser.apply(original);
 
 		assertAll(
+			() -> assertSame(original, focused),
 			() -> assertEquals(1, focused.getStackTrace().length),
 			() -> assertEquals("Keep.java", focused.getStackTrace()[0].getFileName())
 		);
@@ -226,16 +196,23 @@ class StackTraceFocuserTest {
 
 	@Test
 	void buildHonorsSkipDefaultPatterns() {
-		var original = new RuntimeException("boom");
-		original.setStackTrace(new StackTraceElement[] {
+		var withDefaultsOriginal = new RuntimeException("boom");
+		withDefaultsOriginal.setStackTrace(new StackTraceElement[] {
+			new StackTraceElement("java.lang.String", "valueOf", "String.java", 1),
+			new StackTraceElement("com.keep.Type", "run", "Type.java", 2)
+		});
+		var withoutDefaultsOriginal = new RuntimeException("boom");
+		withoutDefaultsOriginal.setStackTrace(new StackTraceElement[] {
 			new StackTraceElement("java.lang.String", "valueOf", "String.java", 1),
 			new StackTraceElement("com.keep.Type", "run", "Type.java", 2)
 		});
 
-		var withDefaults = StackTraceFocuser.builder().build().apply(original);
-		var withoutDefaults = StackTraceFocuser.builder().skipDefaultPatterns().build().apply(original);
+		var withDefaults = StackTraceFocuser.builder().build().apply(withDefaultsOriginal);
+		var withoutDefaults = StackTraceFocuser.builder().skipDefaultPatterns().build().apply(withoutDefaultsOriginal);
 
 		assertAll(
+			() -> assertSame(withDefaultsOriginal, withDefaults),
+			() -> assertSame(withoutDefaultsOriginal, withoutDefaults),
 			() -> assertEquals(1, withDefaults.getStackTrace().length),
 			() -> assertEquals("com.keep.Type", withDefaults.getStackTrace()[0].getClassName()),
 			() -> assertEquals(2, withoutDefaults.getStackTrace().length)
@@ -247,43 +224,6 @@ class StackTraceFocuserTest {
 
 		CustomException(String message) {
 			super(message);
-		}
-	}
-
-	static class MsgCauseException extends RuntimeException {
-		private static final long serialVersionUID = 1L;
-
-		MsgCauseException(String message) {
-			super(message);
-		}
-
-		@SuppressWarnings("unused")
-		MsgCauseException(String message, Throwable cause) {
-			super(message, cause);
-		}
-	}
-
-	static class StringOnlyException extends RuntimeException {
-		private static final long serialVersionUID = 1L;
-
-		StringOnlyException(String message) {
-			super(message);
-		}
-	}
-
-	static class CauseOnlyException extends RuntimeException {
-		private static final long serialVersionUID = 1L;
-
-		CauseOnlyException(Throwable cause) {
-			super(cause);
-		}
-	}
-
-	static class NoArgException extends RuntimeException {
-		private static final long serialVersionUID = 1L;
-
-		NoArgException() {
-			super();
 		}
 	}
 }

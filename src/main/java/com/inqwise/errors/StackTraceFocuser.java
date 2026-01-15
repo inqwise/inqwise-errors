@@ -5,9 +5,10 @@ import static java.util.regex.Pattern.compile;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.StreamSupport.stream;
 
-import java.lang.reflect.Constructor;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -126,11 +127,11 @@ public final class StackTraceFocuser implements Function<Throwable, Throwable> {
 	}
 
 	/**
-	 * Applies the focuser according to the {@link Function} contract, returning a trimmed clone of
-	 * the supplied throwable.
+	 * Applies the focuser according to the {@link Function} contract, trimming the supplied
+	 * throwable in place.
 	 *
 	 * @param throwable the throwable to focus, may be {@code null}
-	 * @return a cloned throwable with filtered stack traces, or {@code null}
+	 * @return the original throwable with filtered stack traces, or {@code null}
 	 */
 	@Override
 	public Throwable apply(final Throwable throwable) {
@@ -138,12 +139,11 @@ public final class StackTraceFocuser implements Function<Throwable, Throwable> {
 	}
 
 	/**
-	 * Applies the focuser, returning a trimmed clone of the supplied throwable with its original
-	 * concrete type.
+	 * Applies the focuser, trimming the supplied throwable in place.
 	 *
 	 * @param throwable the throwable to focus, may be {@code null}
 	 * @param <T> the throwable type
-	 * @return a cloned throwable with filtered stack traces, or {@code null}
+	 * @return the original throwable with filtered stack traces, or {@code null}
 	 */
 	public <T extends Throwable> T applyTyped(final T throwable) {
 		return focus(throwable);
@@ -153,72 +153,25 @@ public final class StackTraceFocuser implements Function<Throwable, Throwable> {
 		if (throwable == null) {
 			return null;
 		}
-		return cloneThrowable(throwable);
+		focusInPlace(throwable, Collections.newSetFromMap(new IdentityHashMap<>()));
+		return throwable;
 	}
 
-	@SuppressWarnings("unchecked")
-	private <T extends Throwable> T cloneThrowable(final T original) {
-		final Throwable clonedCause = original.getCause() == null ? null : cloneThrowable(original.getCause());
-		final T copy = instantiateLike(original, clonedCause);
-		copy.setStackTrace(filteredStack(original.getStackTrace()));
-		for (final Throwable suppressed : original.getSuppressed()) {
-			copy.addSuppressed(cloneThrowable(suppressed));
+	private void focusInPlace(final Throwable throwable, final Set<Throwable> seen) {
+		if (throwable == null || seen.contains(throwable)) {
+			return;
 		}
-		return copy;
+		seen.add(throwable);
+		throwable.setStackTrace(filteredStack(throwable.getStackTrace()));
+		focusInPlace(throwable.getCause(), seen);
+		for (final Throwable suppressed : throwable.getSuppressed()) {
+			focusInPlace(suppressed, seen);
+		}
 	}
 
 	private StackTraceElement[] filteredStack(final StackTraceElement[] stackTrace) {
 		final List<StackTraceElement> found = asList(stackTrace).stream().filter(ignore).collect(toList());
 		return found.toArray(new StackTraceElement[found.size()]);
-	}
-
-	@SuppressWarnings("unchecked")
-	<T extends Throwable> T instantiateLike(final T original, final Throwable cause) {
-		final Class<? extends Throwable> type = original.getClass();
-		final String message = original.getMessage();
-		final T withMessageCause = construct(type, new Class<?>[] { String.class, Throwable.class },
-			new Object[] { message, cause });
-		if (withMessageCause != null) {
-			return withMessageCause;
-		}
-		final T withMessage = construct(type, new Class<?>[] { String.class }, new Object[] { message });
-		if (withMessage != null) {
-			initCause(withMessage, cause);
-			return withMessage;
-		}
-		final T withCause = construct(type, new Class<?>[] { Throwable.class }, new Object[] { cause });
-		if (withCause != null) {
-			return withCause;
-		}
-		final T defaultCtor = construct(type, new Class<?>[0], new Object[0]);
-		if (defaultCtor != null) {
-			initCause(defaultCtor, cause);
-			return defaultCtor;
-		}
-		return (T) new RuntimeException(message, cause);
-	}
-
-	@SuppressWarnings("unchecked")
-	static <T extends Throwable> T construct(final Class<? extends Throwable> type,
-		final Class<?>[] parameterTypes, final Object[] args) {
-		try {
-			final Constructor<? extends Throwable> ctor = type.getDeclaredConstructor(parameterTypes);
-			ctor.setAccessible(true);
-			return (T) ctor.newInstance(args);
-		} catch (final ReflectiveOperationException ignored) {
-			return null;
-		}
-	}
-
-	private static void initCause(final Throwable target, final Throwable cause) {
-		if (cause == null) {
-			return;
-		}
-		try {
-			target.initCause(cause);
-		} catch (final IllegalStateException ignored) {
-			// cause already initialized
-		}
 	}
 
 	/**
@@ -328,6 +281,8 @@ public final class StackTraceFocuser implements Function<Throwable, Throwable> {
 		/**
 		 * Adds a method-name pattern to ignore. Example:
 		 * {@code builder.addMethod(Pattern.compile("^lambda$"));}
+		 * To match a literal {@code $} (common in lambda method names), escape it in the regex:
+		 * {@code builder.addMethod(Pattern.compile("^lambda\\$get\\$2$"));}
 		 *
 		 * @param ignorePattern pattern describing methods to skip
 		 * @return this builder
@@ -340,6 +295,8 @@ public final class StackTraceFocuser implements Function<Throwable, Throwable> {
 		/**
 		 * Adds a method-name regex to ignore.
 		 * Example: {@code builder.addMethod("^dispatch$");}
+		 * To match a literal {@code $}, escape it in the regex:
+		 * {@code builder.addMethod("^lambda\\$get\\$2$");}
 		 *
 		 * @param ignoreRegex regex describing methods to skip
 		 * @return this builder
@@ -352,6 +309,8 @@ public final class StackTraceFocuser implements Function<Throwable, Throwable> {
 		/**
 		 * Adds multiple method-name regexes in one call.
 		 * Example: {@code builder.addMethod("^lambda$", "^helper$");}
+		 * To match a literal {@code $}, escape it in the regex:
+		 * {@code builder.addMethod("^lambda\\$get\\$2$");}
 		 *
 		 * @param ignoreRegex regexes describing methods to skip
 		 * @return this builder
