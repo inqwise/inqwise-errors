@@ -56,7 +56,7 @@
 		<guava.version>33.5.0-jre</guava.version>
 		<jackson.version>2.21.0</jackson.version>
 		<log4j2.version>2.25.3</log4j2.version>
-		<vertx.version>5.0.7</vertx.version>
+		<vertx.version>5.0.8</vertx.version>
     </properties>
 	
 	<dependencies>
