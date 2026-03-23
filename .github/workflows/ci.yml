@@ -41,7 +41,7 @@ jobs:
         fail_ci_if_error: false
       
     - name: Generate test report
-      uses: dorny/test-reporter@v2
+      uses: dorny/test-reporter@v3
       if: success() || failure()
       with:
         name: JDK ${{ matrix.java }} Tests
